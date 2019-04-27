@@ -543,6 +543,9 @@ void PN532::dump_config() {
     case SAM_COMMAND_FAILED:
       ESP_LOGE(TAG, "SAM command failed!");
       break;
+    case RETRY_COMMAND_FAILED:
+      ESP_LOGE(TAG, "RETRY command failed!");
+      break;
   }
 
   LOG_PIN("  CS Pin: ", this->cs_);

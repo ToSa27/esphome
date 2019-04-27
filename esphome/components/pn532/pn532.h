@@ -36,12 +36,13 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
   void register_tag(PN532BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
   void register_trigger(PN532Trigger *trig) { this->triggers_.push_back(trig); }
 
+  void set_card_type(const std::string &card_type);
+  std::string get_card_type();
+
  protected:
   bool is_device_msb_first() override;
 
   std::string card_type_;
-  void set_card_type(const std::string &card_type);
-  std::string get_card_type();
 
   /// Write the full command given in data to the PN532
   void pn532_write_command_(const std::vector<uint8_t> &data);
