@@ -23,7 +23,7 @@ void format_uid(char *buf, const uint8_t *uid, uint8_t uid_length) {
 
 void PN532::set_card_type(const std::string &card_type) { this->card_type_ = card_type; }
 std::string PN532::get_card_type() {
-  if (this->card_type_.length > 0)
+  if (this->card_type_.length() > 0)
     return this->card_type_;
   return "classic";
 }
