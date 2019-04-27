@@ -4,6 +4,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/spi/spi.h"
+#include "Desfire.h"
+#include "Secrets.h"
+#include "Buffer.h"
 
 namespace esphome {
 namespace pn532 {
@@ -27,6 +30,10 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
 
  protected:
   bool is_device_msb_first() override;
+
+  std::string card_type_;
+  void set_card_type(const std::string &card_type);
+  std::string get_card_type();
 
   /// Write the full command given in data to the PN532
   void pn532_write_command_(const std::vector<uint8_t> &data);
@@ -62,7 +69,23 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
     NONE = 0,
     WAKEUP_FAILED,
     SAM_COMMAND_FAILED,
+    RETRY_COMMAND_FAILED,
   } error_code_{NONE};
+
+  Desfire gi_PN532;
+  //DESFireKey gi_PiccMasterKey;
+  DES gi_PiccMasterKey_DES;
+  AES gi_PiccMasterKey_AES;
+  union 
+  {
+      uint64_t  u64;      
+      byte      u8[8];
+  } last_uid;
+  uint8_t last_uid_len;
+  bool ReadCard(byte u8_UID[8], kCard* pk_Card);
+  bool AuthenticatePICC(byte* pu8_KeyVersion);
+  bool PN532::CheckDesfireSecret(uint8_t* user_id);
+  bool PN532::GenerateDesfireSecrets(uint8_t* user_id, DESFireKey* pi_AppMasterKey, byte u8_StoreValue[16]);
 };
 
 class PN532BinarySensor : public binary_sensor::BinarySensor {

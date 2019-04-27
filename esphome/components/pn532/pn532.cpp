@@ -11,6 +11,14 @@ namespace pn532 {
 
 static const char *TAG = "pn532";
 
+struct kCard
+{
+    byte     u8_UidLength;   // UID = 4 or 7 bytes
+    byte     u8_KeyVersion;  // for Desfire random ID cards
+    bool      b_PN532_Error; // true -> the error comes from the PN532, false -> crypto error
+    eCardType e_CardType;    
+};
+
 void format_uid(char *buf, const uint8_t *uid, uint8_t uid_length) {
   int offset = 0;
   for (uint8_t i = 0; i < uid_length; i++) {
@@ -19,6 +27,13 @@ void format_uid(char *buf, const uint8_t *uid, uint8_t uid_length) {
       format = "%02X-";
     offset += sprintf(buf + offset, format, uid[i]);
   }
+}
+
+void PN532::set_card_type(const std::string &card_type) { this->card_type_ = card_type; }
+std::string PN532::get_card_type() {
+  if (this->card_type_.length > 0)
+    return this->card_type_;
+  return "classic";
 }
 
 void PN532::setup() {
@@ -61,9 +76,35 @@ void PN532::setup() {
     return;
   }
 
+  // Set max retries
+  bool ret = this->pn532_write_command_check_ack_({
+      0x32,         // Reconfigure command
+      0x05,         // Config item 5 : Max retries
+      0xFF,         // MxRtyATR (default = 0xFF)
+      0x01,         // MxRtyPSL (default = 0x01)
+      0x03,         // Max retries
+  });
+
+  if (!ret) {
+    this->error_code_ = RETRY_COMMAND_FAILED;
+    this->mark_failed();
+    return;
+  }
+
+  auto retry_result = this->pn532_read_data_();
+  if (retry_result.size() != 1) {
+    ESP_LOGV(TAG, "Invalid MAX RETRY result: (%u)", retry_result.size());  // NOLINT
+    for (auto dat : retry_result) {
+      ESP_LOGV(TAG, " 0x%02X", dat);
+    }
+    this->error_code_ = RETRY_COMMAND_FAILED;
+    this->mark_failed();
+    return;
+  }
+
   // Set up SAM (secure access module)
   uint8_t sam_timeout = std::min(255u, this->update_interval_ / 50);
-  bool ret = this->pn532_write_command_check_ack_({
+  ret = this->pn532_write_command_check_ack_({
       0x14,         // SAM config command
       0x01,         // normal mode
       sam_timeout,  // timeout as multiple of 50ms (actually only for virtual card mode, but shouldn't matter)
@@ -86,22 +127,206 @@ void PN532::setup() {
     this->mark_failed();
     return;
   }
+
+  // Initialize key
+  if (get_card_type() == "ev1_des")
+    gi_PiccMasterKey_DES.SetKeyData(SECRET_PICC_MASTER_KEY, sizeof(SECRET_PICC_MASTER_KEY), CARD_KEY_VERSION);
+  else if (get_card_type() == "ev1_aes")
+    gi_PiccMasterKey_AES.SetKeyData(SECRET_PICC_MASTER_KEY, sizeof(SECRET_PICC_MASTER_KEY), CARD_KEY_VERSION);
+}
+
+bool PN532::ReadCard(byte u8_UID[8], kCard* pk_Card)
+{
+    memset(pk_Card, 0, sizeof(kCard));
+  
+    if (!gi_PN532.ReadPassiveTargetID(u8_UID, &pk_Card->u8_UidLength, &pk_Card->e_CardType))
+    {
+        pk_Card->b_PN532_Error = true;
+        return false;
+    }
+
+    if (pk_Card->e_CardType == CARD_DesRandom) // The card is a Desfire card in random ID mode
+    {
+      if (get_card_type() == "classic") {
+        // random ID not supported for classic cards
+        return false;
+      }
+      if (!AuthenticatePICC(&pk_Card->u8_KeyVersion))
+        return false;
+        
+      // replace the random ID with the real UID
+      if (!gi_PN532.GetRealCardID(u8_UID))
+        return false;
+
+      pk_Card->u8_UidLength = 7; // random ID is only 4 bytes
+    }
+    return true;
+}
+
+bool PN532::AuthenticatePICC(byte* pu8_KeyVersion)
+{
+  if (!gi_PN532.SelectApplication(0x000000)) // PICC level
+      return false;
+
+  if (!gi_PN532.GetKeyVersion(0, pu8_KeyVersion)) // Get version of PICC master key
+      return false;
+
+  // The factory default key has version 0, while a personalized card has key version CARD_KEY_VERSION
+  if (*pu8_KeyVersion == CARD_KEY_VERSION)
+  {
+    if (get_card_type() == "ev1_des") {
+      if (!gi_PN532.Authenticate(0, &gi_PiccMasterKey_DES))
+        return false;
+    } else if (get_card_type() == "ev1_des") {
+      if (!gi_PN532.Authenticate(0, &gi_PiccMasterKey_AES))
+        return false;
+    } else {
+      // unknown card type
+      return false;
+    }
+  }
+  else // The card is still in factory default state
+  {
+      if (!gi_PN532.Authenticate(0, &gi_PN532.DES2_DEFAULT_KEY))
+          return false;
+  }
+  return true;
+}
+
+bool PN532::GenerateDesfireSecrets(uint8_t* user_id, DESFireKey* pi_AppMasterKey, byte u8_StoreValue[16])
+{
+    // The buffer is initialized to zero here
+    byte u8_Data[24] = {0}; 
+    // Copy the 7 byte card UID into the buffer
+    memcpy(u8_Data, user_id, 7);
+
+    // XOR the user name and the random data that are stored in EEPROM over the buffer.
+    // s8_Name[NAME_BUF_SIZE] contains for example { 'P', 'e', 't', 'e', 'r', 0, 0xDE, 0x45, 0x70, 0x5A, 0xF9, 0x11, 0xAB }
+//    int B=0;
+//    for (int N=0; N<NAME_BUF_SIZE; N++)
+//    {
+//        u8_Data[B++] ^= pk_User->s8_Name[N];
+//        if (B > 15) B = 0; // Fill the first 16 bytes of u8_Data, the rest remains zero.
+//    }
+
+    byte u8_AppMasterKey[24];
+    DES i_3KDes;
+    if (!i_3KDes.SetKeyData(SECRET_APPLICATION_KEY, sizeof(SECRET_APPLICATION_KEY), 0) || // set a 24 byte key (168 bit)
+        !i_3KDes.CryptDataCBC(CBC_SEND, KEY_ENCIPHER, u8_AppMasterKey, u8_Data, 24))
+        return false;
+    if (!i_3KDes.SetKeyData(SECRET_STORE_VALUE_KEY, sizeof(SECRET_STORE_VALUE_KEY), 0) || // set a 16 byte key (128 bit)
+        !i_3KDes.CryptDataCBC(CBC_SEND, KEY_ENCIPHER, u8_StoreValue, u8_Data, 16))
+        return false;
+    // If the key is an AES key only the first 16 bytes will be used
+    if (!pi_AppMasterKey->SetKeyData(u8_AppMasterKey, sizeof(u8_AppMasterKey), CARD_KEY_VERSION))
+        return false;
+    return true;
+}
+
+bool PN532::CheckDesfireSecret(uint8_t* user_id)
+{
+  DES i_AppMasterKey_DES;
+  AES i_AppMasterKey_AES;
+  byte u8_StoreValue[16];
+  if (get_card_type() == "ev1_des") {
+    if (!GenerateDesfireSecrets(user_id, &i_AppMasterKey_DES, u8_StoreValue))
+      return false;
+  } else if (get_card_type() == "ev1_des") {
+    if (!GenerateDesfireSecrets(user_id, &i_AppMasterKey_AES, u8_StoreValue))
+      return false;
+  } else {
+    // unknown card type
+    return false;
+  }
+  if (!gi_PN532.SelectApplication(0x000000)) // PICC level
+    return false;
+  byte u8_Version; 
+  if (!gi_PN532.GetKeyVersion(0, &u8_Version))
+    return false;
+  if (u8_Version != CARD_KEY_VERSION)
+    return false;
+  if (!gi_PN532.SelectApplication(CARD_APPLICATION_ID))
+    return false;
+  if (get_card_type() == "ev1_des") {
+    if (!gi_PN532.Authenticate(0, &i_AppMasterKey_DES))
+      return false;
+  } else if (get_card_type() == "ev1_des") {
+    if (!gi_PN532.Authenticate(0, &i_AppMasterKey_AES))
+      return false;
+  } else {
+    // unknown card type
+    return false;
+  }
+  // Read the 16 byte secret from the card
+  byte u8_FileData[16];
+  if (!gi_PN532.ReadFileData(CARD_FILE_ID, 0, 16, u8_FileData))
+    return false;
+  if (memcmp(u8_FileData, u8_StoreValue, 16) != 0)
+    return false;
+  return true;
 }
 
 void PN532::update() {
   for (auto *obj : this->binary_sensors_)
     obj->on_scan_end();
-
-  bool success = this->pn532_write_command_check_ack_({
-      0x4A,  // INLISTPASSIVETARGET
-      0x01,  // max 1 card
-      0x00,  // baud rate ISO14443A (106 kbit/s)
-  });
-  if (!success) {
-    ESP_LOGW(TAG, "Requesting tag read failed!");
-    this->status_set_warning();
-    return;
+  union 
+  {
+      uint64_t  u64;      
+      byte      u8[8];
+  } user_id;
+  kCard k_Card;
+  if (!ReadCard(user_id.u8, &k_Card))
+  {
+      if (gi_PN532.GetLastPN532Error() == 0x01)
+      {
+        ESP_LOGW(TAG, "DESfire timeout!");
+        this->status_set_warning();
+        return;
+      }
+      else if (k_Card.b_PN532_Error) // Another error from PN532 -> reset the chip
+      {
+//            InitReader(true); // flash red LED for 2.4 seconds
+        ESP_LOGW(TAG, "PN532 communication error!");
+        this->status_set_warning();
+        return;
+      }
+      else // e.g. Error while authenticating with master key
+      {
+        ESP_LOGW(TAG, "Error authenticating with master key!");
+        this->status_set_warning();
+        return;
+      }
+      ESP_LOGW(TAG, "Other error!");
+      this->status_set_warning();
+      return;
   }
+  // no card detected
+  if (k_Card.u8_UidLength == 0) 
+      last_uid.u64 = 0;
+  // same card as before
+  if (last_uid.u64 == user_id.u64) 
+    return;
+  // classic card (insecure)
+  if ((k_Card.e_CardType & CARD_Desfire) == 0)
+    return;
+  if (k_Card.e_CardType == CARD_DesRandom) // random ID Desfire card
+  {
+      // random card with default key
+      if (k_Card.u8_KeyVersion != CARD_KEY_VERSION)
+        return;
+  }
+  else // default Desfire card
+  {
+    if (!CheckDesfireSecret(user_id.u8))
+    {
+      if (gi_PN532.GetLastPN532Error() == 0x01) // Prints additional error message and blinks the red LED
+        return;
+      // card is not personalized
+      return;
+    }
+  }
+  last_uid.u64 = user_id.u64;
+  last_uid_len = k_Card.u8_UidLength;
   this->status_clear_warning();
   this->requested_read_ = true;
 }
@@ -109,37 +334,16 @@ void PN532::loop() {
   if (!this->requested_read_ || !this->is_ready_())
     return;
 
-  auto read = this->pn532_read_data_();
   this->requested_read_ = false;
-
-  if (read.size() <= 2 || read[0] != 0x4B) {
-    // Something failed
-    return;
-  }
-
-  uint8_t num_targets = read[1];
-  if (num_targets != 1)
-    // no tags found or too many
-    return;
-
-  // const uint8_t target_number = read[2];
-  // const uint16_t sens_res = uint16_t(read[3] << 8) | read[4];
-  // const uint8_t sel_res = read[5];
-  const uint8_t nfcid_length = read[6];
-  const uint8_t *nfcid = &read[7];
-  if (read.size() < 7U + nfcid_length) {
-    // oops, pn532 returned invalid data
-    return;
-  }
 
   bool report = true;
   // 1. Go through all triggers
   for (auto *trigger : this->triggers_)
-    trigger->process(nfcid, nfcid_length);
+    trigger->process(last_uid.u8, last_uid_len);
 
   // 2. Find a binary sensor
   for (auto *tag : this->binary_sensors_) {
-    if (tag->process(nfcid, nfcid_length)) {
+    if (tag->process(last_uid.u8, last_uid_len)) {
       // 2.1 if found, do not dump
       report = false;
     }
@@ -147,7 +351,7 @@ void PN532::loop() {
 
   if (report) {
     char buf[32];
-    format_uid(buf, nfcid, nfcid_length);
+    format_uid(buf, last_uid.u8, last_uid_len);
     ESP_LOGD(TAG, "Found new tag '%s'", buf);
   }
 }
@@ -351,6 +555,9 @@ void PN532::dump_config() {
 
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
+  if (!this->get_card_type().empty()) {
+    ESP_LOGCONFIG(TAG, "  Card Type: '%s'", this->get_card_type().c_str());
+  }
 
   for (auto *child : this->binary_sensors_) {
     LOG_BINARY_SENSOR("  ", "Tag", child);

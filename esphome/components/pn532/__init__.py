@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import spi
-from esphome.const import CONF_ID, CONF_ON_TAG, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_ON_TAG, CONF_TRIGGER_ID, CONF_CARD_TYPE
 
 DEPENDENCIES = ['spi']
 AUTO_LOAD = ['binary_sensor']
@@ -12,11 +12,19 @@ pn532_ns = cg.esphome_ns.namespace('pn532')
 PN532 = pn532_ns.class_('PN532', cg.PollingComponent, spi.SPIDevice)
 PN532Trigger = pn532_ns.class_('PN532Trigger', automation.Trigger.template(cg.std_string))
 
+
+def validate_card_type(value):
+    if value not in ['classic', 'ev1_des', 'ev1_aes']:
+        raise cv.Invalid("Valid cart types: classic, ev1_des or ev1_aes.")
+    return value
+
+
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(PN532),
     cv.Optional(CONF_ON_TAG): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PN532Trigger),
     }),
+    cv.Optional(CONF_CARD_TYPE): validate_card_type,
 }).extend(cv.polling_component_schema('1s')).extend(spi.SPI_DEVICE_SCHEMA)
 
 
@@ -29,3 +37,6 @@ def to_code(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_trigger(trigger))
         yield automation.build_automation(trigger, [(cg.std_string, 'x')], conf)
+
+    if CONF_CARD_TYPE in config:
+        cg.add(var.set_card_type(config[CONF_CARD_TYPE]))
