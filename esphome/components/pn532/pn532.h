@@ -14,6 +14,14 @@ namespace pn532 {
 class PN532BinarySensor;
 class PN532Trigger;
 
+struct kCard
+{
+    byte     u8_UidLength;   // UID = 4 or 7 bytes
+    byte     u8_KeyVersion;  // for Desfire random ID cards
+    bool      b_PN532_Error; // true -> the error comes from the PN532, false -> crypto error
+    eCardType e_CardType;    
+};
+
 class PN532 : public PollingComponent, public spi::SPIDevice {
  public:
   void setup() override;
@@ -82,10 +90,10 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
       byte      u8[8];
   } last_uid;
   uint8_t last_uid_len;
-  bool ReadCard(byte u8_UID[8], kCard* pk_Card);
+  bool ReadCard(uint8_t* u8_UID[8], kCard* pk_Card);
   bool AuthenticatePICC(byte* pu8_KeyVersion);
-  bool PN532::CheckDesfireSecret(uint8_t* user_id);
-  bool PN532::GenerateDesfireSecrets(uint8_t* user_id, DESFireKey* pi_AppMasterKey, byte u8_StoreValue[16]);
+  bool CheckDesfireSecret(uint8_t* user_id);
+  bool GenerateDesfireSecrets(uint8_t* user_id, DESFireKey* pi_AppMasterKey, byte u8_StoreValue[16]);
 };
 
 class PN532BinarySensor : public binary_sensor::BinarySensor {

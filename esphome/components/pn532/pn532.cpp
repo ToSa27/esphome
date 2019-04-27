@@ -11,14 +11,6 @@ namespace pn532 {
 
 static const char *TAG = "pn532";
 
-struct kCard
-{
-    byte     u8_UidLength;   // UID = 4 or 7 bytes
-    byte     u8_KeyVersion;  // for Desfire random ID cards
-    bool      b_PN532_Error; // true -> the error comes from the PN532, false -> crypto error
-    eCardType e_CardType;    
-};
-
 void format_uid(char *buf, const uint8_t *uid, uint8_t uid_length) {
   int offset = 0;
   for (uint8_t i = 0; i < uid_length; i++) {
@@ -135,7 +127,7 @@ void PN532::setup() {
     gi_PiccMasterKey_AES.SetKeyData(SECRET_PICC_MASTER_KEY, sizeof(SECRET_PICC_MASTER_KEY), CARD_KEY_VERSION);
 }
 
-bool PN532::ReadCard(byte u8_UID[8], kCard* pk_Card)
+bool PN532::ReadCard(uint8_t* u8_UID, kCard* pk_Card)
 {
     memset(pk_Card, 0, sizeof(kCard));
   
