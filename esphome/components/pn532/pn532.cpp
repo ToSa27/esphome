@@ -32,8 +32,8 @@ PN532::PN532()
     // The PICC master key on an empty card is a simple DES key filled with 8 zeros
     const byte ZERO_KEY[24] = {0};
     DES2_DEFAULT_KEY.SetKeyData(ZERO_KEY,  8, 0); // simple DES
-//    DES3_DEFAULT_KEY.SetKeyData(ZERO_KEY, 24, 0); // triple DES
-//    AES_DEFAULT_KEY.SetKeyData(ZERO_KEY, 16, 0);
+    DES3_DEFAULT_KEY.SetKeyData(ZERO_KEY, 24, 0); // triple DES
+    AES_DEFAULT_KEY.SetKeyData(ZERO_KEY, 16, 0);
 }
 
 void PN532::set_card_type(const std::string &card_type) { this->card_type_ = card_type; }
@@ -169,38 +169,9 @@ void PN532::setup() {
     gi_PiccMasterKey_AES.SetKeyData(SECRET_PICC_MASTER_KEY, sizeof(SECRET_PICC_MASTER_KEY), CARD_KEY_VERSION);
 }
 
-void PN532::WriteCommand(byte* cmd, byte cmdlen)
-{
-    std::vector<uint8_t> wb;
-    for (int i = 0; i < cmdlen; i++)
-        wb.push_back((uint8_t)cmd[i]);
-    this->pn532_write_command_(wb);
-}
-
-bool PN532::IsReady() 
-{
-    return this->is_ready_();
-}
-
-bool PN532::WaitReady() 
-{
-    uint16_t timer = 0;
-    while (!IsReady()) 
-    {
-        if (timer >= PN532_TIMEOUT) 
-        {
-            Utils::Print("WaitReady() -> TIMEOUT\r\n");
-            return false;
-        }
-        Utils::DelayMilli(10);
-        timer += 10;        
-    }
-    return true;
-}
-
 bool PN532::ReadPacket(byte* buff, byte len)
 { 
-    if (!WaitReady())
+    if (!this->wait_ready_())
         return false;
 
     this->enable();
@@ -209,36 +180,6 @@ bool PN532::ReadPacket(byte* buff, byte len)
     this->read_array(buff, len);
     this->disable();
     return true;
-}
-
-bool PN532::ReadAck() 
-{
-    const byte Ack[] = {0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00};
-    byte ackbuff[sizeof(Ack)];
-    
-    // ATTENTION: Never read more than 6 bytes here!
-    // The PN532 has a bug in SPI mode which results in the first byte of the response missing if more than 6 bytes are read here!
-    if (!ReadPacket(ackbuff, sizeof(ackbuff)))
-        return false; // Timeout
-
-    if (mu8_DebugLevel > 2)
-    {
-        Utils::Print("Read ACK: ");
-        Utils::PrintHexBuf(ackbuff, sizeof(ackbuff), LF);
-    }
-    
-    if (memcmp(ackbuff, Ack, sizeof(Ack)) != 0)
-    {
-        Utils::Print("*** No ACK frame received\r\n");
-        return false;
-    }
-    return true;
-}
-
-bool PN532::SendCommandCheckAck(byte *cmd, byte cmdlen) 
-{
-    WriteCommand(cmd, cmdlen);
-    return ReadAck();
 }
 
 byte PN532::ReadData(byte* buff, byte len) 
@@ -361,11 +302,11 @@ bool PN532::ReadPassiveTargetID(byte* u8_UidBuffer, byte* pu8_UidLength, eCardTy
     *pe_CardType   = CARD_Unknown;
     memset(u8_UidBuffer, 0, 8);
       
-    mu8_PacketBuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
-    mu8_PacketBuffer[1] = 1;  // read data of 1 card (The PN532 can read max 2 targets at the same time)
-    mu8_PacketBuffer[2] = CARD_TYPE_106KB_ISO14443A; // This function currently does not support other card types.
-  
-    if (!SendCommandCheckAck(mu8_PacketBuffer, 3))
+    if (!pn532_write_command_check_ack_({
+        PN532_COMMAND_INLISTPASSIVETARGET,
+        1,  // read data of 1 card (The PN532 can read max 2 targets at the same time)
+        CARD_TYPE_106KB_ISO14443A // This function currently does not support other card types.
+    }))
         return false; // Error (no valid ACK received or timeout)
   
     /* 
@@ -538,7 +479,7 @@ bool PN532::CheckDesfireSecret(uint8_t* user_id)
   if (get_card_type() == "ev1_des") {
     if (!GenerateDesfireSecrets(user_id, &i_AppMasterKey_DES, u8_StoreValue))
       return false;
-  } else if (get_card_type() == "ev1_des") {
+  } else if (get_card_type() == "ev1_aes") {
     if (!GenerateDesfireSecrets(user_id, &i_AppMasterKey_AES, u8_StoreValue))
       return false;
   } else {
@@ -557,7 +498,7 @@ bool PN532::CheckDesfireSecret(uint8_t* user_id)
   if (get_card_type() == "ev1_des") {
     if (!this->Authenticate(0, &i_AppMasterKey_DES))
       return false;
-  } else if (get_card_type() == "ev1_des") {
+  } else if (get_card_type() == "ev1_aes") {
     if (!this->Authenticate(0, &i_AppMasterKey_AES))
       return false;
   } else {
@@ -571,6 +512,379 @@ bool PN532::CheckDesfireSecret(uint8_t* user_id)
   if (memcmp(u8_FileData, u8_StoreValue, 16) != 0)
     return false;
   return true;
+}
+
+bool PN532::CreateApplication(uint32_t u32_AppID, DESFireKeySettings e_Settg, byte u8_KeyCount, DESFireKeyType e_KeyType)
+{
+    if (mu8_DebugLevel > 0)
+    {
+        char s8_Buf[80];
+        sprintf(s8_Buf, "\r\n*** CreateApplication(App= 0x%06X, KeyCount= %d, Type= %s)\r\n", (unsigned int)u32_AppID, u8_KeyCount, DESFireKey::GetKeyTypeAsString(e_KeyType));
+        Utils::Print(s8_Buf);
+    }
+
+    if (e_KeyType == DF_KEY_INVALID)
+    {
+        Utils::Print("Invalid key type\r\n");
+        return false;
+    }
+
+    TX_BUFFER(i_Params, 5);
+    i_Params.AppendUint24(u32_AppID);
+    i_Params.AppendUint8 (e_Settg);
+    i_Params.AppendUint8 (u8_KeyCount | e_KeyType);
+
+    return (0 == DataExchange(DF_INS_CREATE_APPLICATION, &i_Params, NULL, 0, NULL, MAC_TmacRmac));
+}
+
+bool PN532::DeleteApplicationIfExists(uint32_t u32_AppID)
+{
+    uint32_t u32_IDlist[28];
+    byte     u8_AppCount;
+    if (!GetApplicationIDs(u32_IDlist, &u8_AppCount))
+        return false;
+
+    bool b_Found = false;
+    for (byte i=0; i<u8_AppCount; i++)
+    {
+        if (u32_IDlist[i] == u32_AppID)
+            b_Found = true;
+    }
+    if (!b_Found)
+        return true;
+
+    return DeleteApplication(u32_AppID);
+}
+
+bool PN532::DeleteApplication(uint32_t u32_AppID)
+{
+    if (mu8_DebugLevel > 0)
+    {
+        char s8_Buf[80];
+        sprintf(s8_Buf, "\r\n*** DeleteApplication(0x%06X)\r\n", (unsigned int)u32_AppID);
+        Utils::Print(s8_Buf);
+    }
+
+    TX_BUFFER(i_Params, 3);
+    i_Params.AppendUint24(u32_AppID);   
+
+    return (0 == DataExchange(DF_INS_DELETE_APPLICATION, &i_Params, NULL, 0, NULL, MAC_TmacRmac));
+}
+
+bool PN532::GetApplicationIDs(uint32_t u32_IDlist[28], byte* pu8_AppCount)
+{
+    if (mu8_DebugLevel > 0) Utils::Print("\r\n*** GetApplicationIDs()\r\n");
+
+    memset(u32_IDlist, 0, 28 * sizeof(uint32_t));
+
+    RX_BUFFER(i_RxBuf, 28*3); // 3 byte per application
+    byte* pu8_Ptr = i_RxBuf;
+
+    DESFireStatus e_Status;
+    int s32_Read1 = DataExchange(DF_INS_GET_APPLICATION_IDS, NULL, pu8_Ptr, MAX_FRAME_SIZE, &e_Status, MAC_TmacRmac);
+    if (s32_Read1 < 0)
+        return false;
+
+    // If there are more than 19 applications, they will be sent in two frames
+    int s32_Read2 = 0;
+    if (e_Status == ST_MoreFrames)
+    {
+        pu8_Ptr += s32_Read1;
+        s32_Read2 = DataExchange(DF_INS_ADDITIONAL_FRAME, NULL, pu8_Ptr, 28 * 3 - s32_Read1, NULL, MAC_Rmac);
+        if (s32_Read2 < 0)
+            return false;
+    }
+
+    i_RxBuf.SetSize (s32_Read1 + s32_Read2);
+    *pu8_AppCount = (s32_Read1 + s32_Read2) / 3;
+
+    // Convert 3 byte array -> 4 byte array
+    for (byte i=0; i<*pu8_AppCount; i++)
+    {
+        u32_IDlist[i] = i_RxBuf.ReadUint24();
+    }
+
+    if (mu8_DebugLevel > 0)
+    {
+        if (*pu8_AppCount == 0)
+        {
+            Utils::Print("No Application ID's.\r\n");
+        }
+        else for (byte i=0; i<*pu8_AppCount; i++)
+        {
+            char s8_Buf[80];
+            sprintf(s8_Buf, "Application %2d: 0x%06X\r\n", i, (unsigned int)u32_IDlist[i]);
+            Utils::Print(s8_Buf);
+        }
+    }
+    return true;
+}
+
+bool PN532::StoreDesfireSecret(uint8_t* user_id)
+{
+    if (CARD_APPLICATION_ID == 0x000000 || CARD_KEY_VERSION == 0)
+        return false; // severe errors in Secrets.h -> abort
+  
+    DES i_AppMasterKey_DES;
+    AES i_AppMasterKey_AES;
+    byte u8_StoreValue[16];
+    if (get_card_type() == "ev1_des") {
+        if (!GenerateDesfireSecrets(user_id, &i_AppMasterKey_DES, u8_StoreValue))
+            return false;
+    } else if (get_card_type() == "ev1_aes") {
+        if (!GenerateDesfireSecrets(user_id, &i_AppMasterKey_AES, u8_StoreValue))
+            return false;
+    } else {
+        // unknown card type
+        return false;
+    }
+
+    // First delete the application (The current application master key may have changed after changing the user name for that card)
+    if (!DeleteApplicationIfExists(CARD_APPLICATION_ID))
+        return false;
+
+    // Create the new application with default settings (we must still have permission to change the application master key later)
+    if (get_card_type() == "ev1_des") {
+        if (!CreateApplication(CARD_APPLICATION_ID, KS_FACTORY_DEFAULT, 1, i_AppMasterKey_DES.GetKeyType()))
+            return false;
+    } else if (get_card_type() == "ev1_aes") {
+        if (!CreateApplication(CARD_APPLICATION_ID, KS_FACTORY_DEFAULT, 1, i_AppMasterKey_AES.GetKeyType()))
+            return false;
+    } else {
+        // unknown card type
+        return false;
+    }
+
+    // After this command all the following commands will apply to the application (rather than the PICC)
+    if (!SelectApplication(CARD_APPLICATION_ID))
+        return false;
+
+
+    // Authentication with the application's master key is required
+    // Change the master key of the application
+    // A key change always requires a new authentication with the new key
+    if (get_card_type() == "ev1_des") {
+        if (!Authenticate(0, &DES3_DEFAULT_KEY))
+            return false;
+        if (!ChangeKey(0, &i_AppMasterKey_DES, NULL))
+            return false;
+        if (!Authenticate(0, &i_AppMasterKey_DES))
+            return false;
+    } else if (get_card_type() == "ev1_aes") {
+        if (!Authenticate(0, &AES_DEFAULT_KEY))
+            return false;
+        if (!ChangeKey(0, &i_AppMasterKey_AES, NULL))
+            return false;
+        if (!Authenticate(0, &i_AppMasterKey_AES))
+            return false;
+    } else {
+        // unknown card type
+        return false;
+    }
+
+    // After this command the application's master key and it's settings will be frozen. They cannot be changed anymore.
+    // To read or enumerate any content (files) in the application the application master key will be required.
+    // Even if someone knows the PICC master key, he will neither be able to read the data in this application nor to change the app master key.
+    if (!ChangeKeySettings(KS_CHANGE_KEY_FROZEN))
+        return false;
+
+    // --------------------------------------------
+
+    // Create Standard Data File with 16 bytes length
+    DESFireFilePermissions k_Permis;
+    k_Permis.e_ReadAccess         = AR_KEY0;
+    k_Permis.e_WriteAccess        = AR_KEY0;
+    k_Permis.e_ReadAndWriteAccess = AR_KEY0;
+    k_Permis.e_ChangeAccess       = AR_KEY0;
+    if (!CreateStdDataFile(CARD_FILE_ID, &k_Permis, 16))
+        return false;
+
+    // Write the StoreValue into that file
+    if (!WriteFileData(CARD_FILE_ID, 0, 16, u8_StoreValue))
+        return false;       
+  
+    return true;
+}
+
+bool PN532::WriteFileData(byte u8_FileID, int s32_Offset, int s32_Length, const byte* u8_DataBuffer)
+{
+    if (mu8_DebugLevel > 0)
+    {
+        char s8_Buf[80];
+        sprintf(s8_Buf, "\r\n*** WriteFileData(ID= %d, Offset= %d, Length= %d)\r\n", u8_FileID, s32_Offset, s32_Length);
+        Utils::Print(s8_Buf);
+    }
+
+    // With intention this command does not use DF_INS_ADDITIONAL_FRAME because the CMAC must be calculated over all frames sent.
+    // When writing a lot of data this could lead to a buffer overflow in mi_CmacBuffer.
+    while (s32_Length > 0)
+    {
+        int s32_Count = min(s32_Length, MAX_FRAME_SIZE - 8); // DF_INS_WRITE_DATA + u8_FileID + s32_Offset + s32_Count = 8 bytes
+              
+        TX_BUFFER(i_Params, MAX_FRAME_SIZE); 
+        i_Params.AppendUint8 (u8_FileID);
+        i_Params.AppendUint24(s32_Offset); // only the low 3 bytes are used
+        i_Params.AppendUint24(s32_Count);  // only the low 3 bytes are used
+        i_Params.AppendBuf(u8_DataBuffer, s32_Count);
+
+        DESFireStatus e_Status;
+        int s32_Read = DataExchange(DF_INS_WRITE_DATA, &i_Params, NULL, 0, &e_Status, MAC_TmacRmac);
+        if (e_Status != ST_Success || s32_Read != 0)
+            return false; // ST_MoreFrames is not allowed here!
+
+        s32_Length    -= s32_Count;
+        s32_Offset    += s32_Count;
+        u8_DataBuffer += s32_Count;
+    }
+    return true;
+}
+
+bool PN532::CreateStdDataFile(byte u8_FileID, DESFireFilePermissions* pk_Permis, int s32_FileSize)
+{
+    if (mu8_DebugLevel > 0)
+    {
+        char s8_Buf[80];
+        sprintf(s8_Buf, "\r\n*** CreateStdDataFile(ID= %d, Size= %d)\r\n", u8_FileID, s32_FileSize);
+        Utils::Print(s8_Buf);
+    }
+
+    uint16_t u16_Permis = pk_Permis->Pack();
+  
+    TX_BUFFER(i_Params, 7);
+    i_Params.AppendUint8 (u8_FileID);
+    i_Params.AppendUint8 (CM_PLAIN);
+    i_Params.AppendUint16(u16_Permis);
+    i_Params.AppendUint24(s32_FileSize); // only the low 3 bytes are used
+
+    return (0 == DataExchange(DF_INS_CREATE_STD_DATA_FILE, &i_Params, NULL, 0, NULL, MAC_TmacRmac));
+
+}
+
+bool PN532::ChangeKeySettings(DESFireKeySettings e_NewSettg)
+{
+    if (mu8_DebugLevel > 0)
+    {
+        char s8_Buf[80];
+        sprintf(s8_Buf, "\r\n*** ChangeKeySettings(0x%02X)\r\n", e_NewSettg);
+        Utils::Print(s8_Buf);
+    }
+
+    TX_BUFFER(i_Params, 16);
+    i_Params.AppendUint8(e_NewSettg);
+
+    // The TX CMAC must not be calculated here because a CBC encryption operation has already been executed
+    return (0 == DataExchange(DF_INS_CHANGE_KEY_SETTINGS, &i_Params, NULL, 0, NULL, MAC_TcryptRmac));
+}
+
+bool PN532::ChangeKey(byte u8_KeyNo, DESFireKey* pi_NewKey, DESFireKey* pi_CurKey)
+{
+    if (mu8_DebugLevel > 0)
+    {
+        char s8_Buf[80];
+        sprintf(s8_Buf, "\r\n*** ChangeKey(KeyNo= %d)\r\n", u8_KeyNo);
+        Utils::Print(s8_Buf);
+    }
+
+    if (mu8_LastAuthKeyNo == NOT_AUTHENTICATED)
+    {
+        Utils::Print("Not authenticated\r\n");
+        return false;
+    }
+
+    if (mu8_DebugLevel > 0)
+    {
+        Utils::Print("* SessKey IV:  ");
+        mpi_SessionKey->PrintIV(LF);
+        Utils::Print("* New Key:     ");
+        pi_NewKey->PrintKey(LF);
+    }    
+
+    if (!DESFireKey::CheckValid(pi_NewKey))
+        return false;
+
+    TX_BUFFER(i_Cryptogram, 40);
+    i_Cryptogram.AppendBuf(pi_NewKey->Data(), pi_NewKey->GetKeySize(16));
+
+    bool b_SameKey = (u8_KeyNo == mu8_LastAuthKeyNo);  // false -> change another key than the one that was used for authentication
+
+    // The type of key can only be changed for the PICC master key.
+    // Applications must define their key type in CreateApplication().
+    if (mu32_LastApplication == 0x000000)
+        u8_KeyNo |= pi_NewKey->GetKeyType();
+
+    // The following if() applies only to application keys.
+    // For the PICC master key b_SameKey is always true because there is only ONE key (#0) at the PICC level.
+    if (!b_SameKey) 
+    {
+        if (!DESFireKey::CheckValid(pi_CurKey))
+            return false;
+
+        if (mu8_DebugLevel > 0)
+        {
+            Utils::Print("* Cur Key:     ");
+            pi_CurKey->PrintKey(LF);
+        }        
+
+        // The current key and the new key must be XORed        
+        Utils::XorDataBlock(i_Cryptogram, pi_CurKey->Data(), pi_CurKey->GetKeySize(16));
+    }
+
+    // While DES stores the key version in bit 0 of the key bytes, AES transmits the version separately
+    if (pi_NewKey->GetKeyType() == DF_KEY_AES)
+    {
+        i_Cryptogram.AppendUint8(pi_NewKey->GetKeyVersion());
+    }
+
+    byte u8_Command[] = { DF_INS_CHANGE_KEY, u8_KeyNo };   
+    uint32_t u32_Crc = Utils::CalcCrc32(u8_Command, 2, i_Cryptogram, i_Cryptogram.GetCount());
+    i_Cryptogram.AppendUint32(u32_Crc);
+
+    if (mu8_DebugLevel > 0)
+    {
+        Utils::Print("* CRC Crypto:  0x");
+        Utils::PrintHex32(u32_Crc, LF);
+    }
+
+    if (!b_SameKey)
+    {
+        uint32_t u32_CrcNew = Utils::CalcCrc32(pi_NewKey->Data(), pi_NewKey->GetKeySize(16));
+        i_Cryptogram.AppendUint32(u32_CrcNew);        
+
+        if (mu8_DebugLevel > 0)
+        {
+            Utils::Print("* CRC New Key: 0x");
+            Utils::PrintHex32(u32_CrcNew, LF);
+        }
+    }
+
+    // Get the padded length of the Cryptogram to be encrypted
+    int s32_CryptoLen = 24;
+    if (i_Cryptogram.GetCount() > 24) s32_CryptoLen = 32;
+    if (i_Cryptogram.GetCount() > 32) s32_CryptoLen = 40;
+
+    // For a blocksize of 16 byte (AES) the data length 24 is not valid -> increase to 32
+    s32_CryptoLen = mpi_SessionKey->CalcPaddedBlockSize(s32_CryptoLen);
+
+    byte u8_Cryptogram_enc[40] = {0}; // encrypted cryptogram
+    if (!mpi_SessionKey->CryptDataCBC(CBC_SEND, KEY_ENCIPHER, u8_Cryptogram_enc, i_Cryptogram, s32_CryptoLen))
+        return false;
+
+    if (mu8_DebugLevel > 0)
+    {
+        Utils::Print("* Cryptogram:  ");
+        Utils::PrintHexBuf(i_Cryptogram, s32_CryptoLen, LF);
+        Utils::Print("* Cryptog_enc: ");
+        Utils::PrintHexBuf(u8_Cryptogram_enc, s32_CryptoLen, LF);
+    }
+
+    TX_BUFFER(i_Params, 41);
+    i_Params.AppendUint8(u8_KeyNo);
+    i_Params.AppendBuf  (u8_Cryptogram_enc, s32_CryptoLen);
+
+    // If the same key has been changed the session key is no longer valid. (Authentication required)
+    if (b_SameKey) mu8_LastAuthKeyNo = NOT_AUTHENTICATED;
+
+    return (0 == DataExchange(DF_INS_CHANGE_KEY, &i_Params, NULL, 0, NULL, MAC_Rmac));
 }
 
 void PN532::update() {
@@ -1276,17 +1590,26 @@ int PN532::DataExchange(TxBuffer* pi_Command,               // in (command + par
         }
     }
 
-    int P=0;
-    mu8_PacketBuffer[P++] = PN532_COMMAND_INDATAEXCHANGE;
-    mu8_PacketBuffer[P++] = 1; // Card number (Logical target number)
+//    int P=0;
+//    mu8_PacketBuffer[P++] = PN532_COMMAND_INDATAEXCHANGE;
+//    mu8_PacketBuffer[P++] = 1; // Card number (Logical target number)
 
-    memcpy(mu8_PacketBuffer + P, pi_Command->GetData(), pi_Command->GetCount());
-    P += pi_Command->GetCount();
+//    memcpy(mu8_PacketBuffer + P, pi_Command->GetData(), pi_Command->GetCount());
+//    P += pi_Command->GetCount();
 
-    memcpy(mu8_PacketBuffer + P, pi_Params->GetData(),  pi_Params->GetCount());
-    P += pi_Params->GetCount();
+//    memcpy(mu8_PacketBuffer + P, pi_Params->GetData(),  pi_Params->GetCount());
+//    P += pi_Params->GetCount();
 
-    if (!SendCommandCheckAck(mu8_PacketBuffer, P))
+    std::vector<uint8_t> buf = {
+        PN532_COMMAND_INDATAEXCHANGE,
+        1 // Card number (Logical target number)
+    };
+    for (int i = 0; i < pi_Command->GetCount(); i++)
+        buf.push_back(pi_Command->GetData()[i]);
+    for (int i = 0; i < pi_Params->GetCount(); i++)
+        buf.push_back(pi_Params->GetData()[i]);
+
+    if (!pn532_write_command_check_ack_(buf))
         return -1;
 
     byte s32_Len = ReadData(mu8_PacketBuffer, s32_RecvSize + s32_Overhead);

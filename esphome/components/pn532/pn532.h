@@ -411,23 +411,23 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
 //    bool GetFreeMemory(uint32_t* pu32_Memory);
     // ---------------------    
     bool Authenticate (byte u8_KeyNo, DESFireKey* pi_Key);
-//    bool ChangeKey    (byte u8_KeyNo, DESFireKey* pi_NewKey, DESFireKey* pi_CurKey);
+    bool ChangeKey    (byte u8_KeyNo, DESFireKey* pi_NewKey, DESFireKey* pi_CurKey);
     bool GetKeyVersion(byte u8_KeyNo, byte* pu8_Version);
 //    bool GetKeySettings   (DESFireKeySettings* pe_Settg, byte* pu8_KeyCount, DESFireKeyType* pe_KeyType);
-//    bool ChangeKeySettings(DESFireKeySettings e_NewSettg);  
+    bool ChangeKeySettings(DESFireKeySettings e_NewSettg);  
     // ---------------------
-//    bool GetApplicationIDs(uint32_t u32_IDlist[28], byte* pu8_AppCount);
-//    bool CreateApplication(uint32_t u32_AppID, DESFireKeySettings e_Settg, byte u8_KeyCount, DESFireKeyType e_KeyType);
+    bool GetApplicationIDs(uint32_t u32_IDlist[28], byte* pu8_AppCount);
+    bool CreateApplication(uint32_t u32_AppID, DESFireKeySettings e_Settg, byte u8_KeyCount, DESFireKeyType e_KeyType);
     bool SelectApplication(uint32_t u32_AppID);    
-//    bool DeleteApplication(uint32_t u32_AppID);    
-//    bool DeleteApplicationIfExists(uint32_t u32_AppID);
+    bool DeleteApplication(uint32_t u32_AppID);    
+    bool DeleteApplicationIfExists(uint32_t u32_AppID);
     // ---------------------
 //    bool GetFileIDs       (byte* u8_FileIDs, byte* pu8_FileCount);
 //    bool GetFileSettings  (byte u8_FileID, DESFireFileSettings* pk_Settings);
 //    bool DeleteFile       (byte u8_FileID);
-//    bool CreateStdDataFile(byte u8_FileID, DESFireFilePermissions* pk_Permis, int s32_FileSize);
+    bool CreateStdDataFile(byte u8_FileID, DESFireFilePermissions* pk_Permis, int s32_FileSize);
     bool ReadFileData     (byte u8_FileID, int s32_Offset, int s32_Length, byte* u8_DataBuffer);
-//    bool WriteFileData    (byte u8_FileID, int s32_Offset, int s32_Length, const byte* u8_DataBuffer);
+    bool WriteFileData    (byte u8_FileID, int s32_Offset, int s32_Length, const byte* u8_DataBuffer);
 //  	bool ReadFileValue    (byte u8_FileID, uint32_t* pu32_Value);
     // ---------------------
 //    bool SwitchOffRfField();  // overrides PN532::SwitchOffRfField()
@@ -435,18 +435,13 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
     byte GetLastPN532Error(); // See comment for this function in CPP file
 
     DES  DES2_DEFAULT_KEY; // 2K3DES key with  8 zeroes {00,00,00,00,00,00,00,00}
-//    DES  DES3_DEFAULT_KEY; // 3K3DES key with 24 zeroes 
-//    AES  AES_DEFAULT_KEY; // AES    key with 16 zeroes
+    DES  DES3_DEFAULT_KEY; // 3K3DES key with 24 zeroes 
+    AES  AES_DEFAULT_KEY; // AES    key with 16 zeroes
 
     byte mu8_DebugLevel;   // 0, 1, or 2
     byte mu8_PacketBuffer[PN532_PACKBUFFSIZE];
 
-    bool IsReady();
-    bool WaitReady();
     bool ReadPacket(byte* buff, byte len);
-    bool ReadAck();
-    void WriteCommand(byte* cmd, byte cmdlen);
-    bool SendCommandCheckAck(byte *cmd, byte cmdlen);
     byte ReadData(byte* buff, byte len);
     bool ReadPassiveTargetID(byte* u8_UidBuffer, byte* pu8_UidLength, eCardType* pe_CardType);
 
@@ -488,6 +483,7 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
   bool AuthenticatePICC(byte* pu8_KeyVersion);
   bool CheckDesfireSecret(uint8_t* user_id);
   bool GenerateDesfireSecrets(uint8_t* user_id, DESFireKey* pi_AppMasterKey, byte u8_StoreValue[16]);
+  bool StoreDesfireSecret(uint8_t* user_id);
   bool CheckPN532Status(byte u8_Status);
 
 private:
