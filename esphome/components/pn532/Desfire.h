@@ -252,7 +252,7 @@ enum DESFireCmac
     MAC_TcryptRmac = MAC_Tcrypt | MAC_Rmac,
 };
 
-class Desfire : public PN532
+class Desfire : public PN532_
 {
  public:
     Desfire();

@@ -3,6 +3,7 @@
 #define ADAFRUIT_PN532_H
 
 #include "Utils.h"
+#include "pn532.h"
 
 // ----------------------------------------------------------------------
 
@@ -139,13 +140,14 @@ enum eCardType
     CARD_DesRandom = 3, // A Desfire card with 4 byte random UID  (bit 0 + 1)
 };
 
-class PN532
+class PN532_
 {
  public:
-    PN532();
+    PN532_();
     
     #if USE_SOFTWARE_SPI
         void InitSoftwareSPI(byte u8_Clk, byte u8_Miso, byte u8_Mosi, byte u8_Sel, byte u8_Reset);
+        PN532* pn;
     #endif
     #if USE_HARDWARE_SPI
         void InitHardwareSPI(byte u8_Sel, byte u8_Reset);    
