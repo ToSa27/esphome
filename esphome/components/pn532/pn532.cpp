@@ -32,8 +32,14 @@ void PN532::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PN532...");
   this->spi_setup();
 
-  gi_PN532.pn = this;
-  
+  gi_PN532.pn_is_ready_ = this->is_ready_;
+  gi_PN532.pn_pn532_write_command_ = this->pn532_write_command_;
+  gi_PN532.pn_enable = this->enable;
+  gi_PN532.pn_write_byte = this->write_byte;
+  gi_PN532.pn_read_array = this->read_array;
+  gi_PN532.pn_disable = this->disable;
+  gi_PN532.pn_read_byte = this->read_byte;
+
   // Wake the chip up from power down
   // 1. Enable the SS line for at least 2ms
   // 2. Send a dummy command to get the protocol synced up

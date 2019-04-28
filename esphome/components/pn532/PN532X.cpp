@@ -612,7 +612,7 @@ bool PN532X::CheckPN532Status(byte u8_Status)
 **************************************************************************/
 bool PN532X::IsReady() 
 {
-    return pn->is_ready_();
+    return pn_is_ready_();
     /*
     #if (USE_HARDWARE_SPI || USE_SOFTWARE_SPI) 
     {
@@ -699,7 +699,7 @@ void PN532X::WriteCommand(byte* cmd, byte cmdlen)
     std::vector<uint8_t> wb;
     for (int i = 0; i < cmdlen; i++)
         wb.push_back((uint8_t)cmd[i]);
-    pn->pn532_write_command_(wb);
+    pn_pn532_write_command_(wb);
     /*
     byte TxBuffer[PN532_PACKBUFFSIZE + 10];
     int P=0;
@@ -926,11 +926,11 @@ bool PN532X::ReadPacket(byte* buff, byte len)
     if (!WaitReady())
         return false;
 
-    pn->enable();
+    pn_enable();
     delay(2);
-    pn->write_byte(0x03);
-    pn->read_array(buff, len);
-    pn->disable();
+    pn_write_byte(0x03);
+    pn_read_array(buff, len);
+    pn_disable();
 
     /*
     #if (USE_HARDWARE_SPI || USE_SOFTWARE_SPI) 
@@ -983,7 +983,7 @@ bool PN532X::ReadPacket(byte* buff, byte len)
 **************************************************************************/
 void PN532X::SpiWrite(byte c) 
 {
-    pn->write_byte((uint8_t)c);
+    pn_write_byte((uint8_t)c);
     /*
     #if USE_HARDWARE_SPI
     {
@@ -1016,7 +1016,7 @@ void PN532X::SpiWrite(byte c)
 **************************************************************************/
 byte PN532X::SpiRead(void) 
 {
-    return (byte)pn->read_byte();
+    return (byte)pn_read_byte();
     /*
     #if USE_HARDWARE_SPI 
     {

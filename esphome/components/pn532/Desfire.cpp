@@ -55,7 +55,7 @@ bool Desfire::SwitchOffRfField()
     mu8_LastAuthKeyNo    = NOT_AUTHENTICATED;
     mu32_LastApplication = 0x000000; // No application selected
 
-    return PN532::SwitchOffRfField();
+    return PN532X::SwitchOffRfField();
 }
 
 /**************************************************************************

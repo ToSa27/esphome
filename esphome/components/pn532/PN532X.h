@@ -3,7 +3,7 @@
 #define ADAFRUIT_PN532_H
 
 #include "Utils.h"
-#include "pn532.h"
+//#include "pn532.h"
 
 // ----------------------------------------------------------------------
 
@@ -147,7 +147,13 @@ class PN532X
     
     #if USE_SOFTWARE_SPI
         void InitSoftwareSPI(byte u8_Clk, byte u8_Miso, byte u8_Mosi, byte u8_Sel, byte u8_Reset);
-        PN532* pn;
+        bool (*pn_is_ready_)();
+        void (*pn_pn532_write_command_)(std::vector<uint8_t>);
+        void (*pn_enable)();
+        void (*pn_write_byte)(uint8_t);
+        void (*pn_read_array)(uint8_t*, uint8_t);
+        void (*pn_disable)();
+        uint8_t (*pn_read_byte)();
     #endif
     #if USE_HARDWARE_SPI
         void InitHardwareSPI(byte u8_Sel, byte u8_Reset);    
