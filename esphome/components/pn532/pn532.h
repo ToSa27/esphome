@@ -404,9 +404,9 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
   void set_key_version(const byte key_version);
 
     PN532();
-//    bool GetCardVersion(DESFireCardVersion* pk_Version);
-//    bool FormatCard();
-//    bool EnableRandomIDForever();
+    bool GetCardVersion(DESFireCardVersion* pk_Version);
+    bool FormatCard();
+    bool EnableRandomIDForever();
     bool GetRealCardID(byte u8_UID[7]);
 //    bool GetFreeMemory(uint32_t* pu32_Memory);
     // ---------------------    

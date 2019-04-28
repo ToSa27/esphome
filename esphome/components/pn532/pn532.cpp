@@ -1901,5 +1901,68 @@ bool PN532::CheckPN532Status(byte u8_Status)
     }
 }
 
+bool PN532::GetCardVersion(DESFireCardVersion* pk_Version)
+{
+    if (mu8_DebugLevel > 0) Utils::Print("\r\n*** GetCardVersion()\r\n");
+
+    byte* pu8_Ptr = (byte*)pk_Version;
+
+    DESFireStatus e_Status;
+    int s32_Read = DataExchange(DF_INS_GET_VERSION, NULL, pu8_Ptr, 7, &e_Status, MAC_TmacRmac);
+    if (s32_Read != 7 || e_Status != ST_MoreFrames)
+        return false;
+
+    pu8_Ptr += 7;
+    s32_Read = DataExchange(DF_INS_ADDITIONAL_FRAME, NULL, pu8_Ptr, 7, &e_Status, MAC_Rmac);
+    if (s32_Read != 7 || e_Status != ST_MoreFrames)
+        return false;
+
+    pu8_Ptr += 7;
+    s32_Read = DataExchange(DF_INS_ADDITIONAL_FRAME, NULL, pu8_Ptr, 14, &e_Status, MAC_Rmac);
+    if (s32_Read != 14 || e_Status != ST_Success)
+        return false;
+
+    if (mu8_DebugLevel > 0)
+    {
+        char s8_Buf[80];
+        Utils::Print("--- Desfire Card Details ---\r\n");
+        sprintf(s8_Buf, "Hardware Version: %d.%d\r\n", pk_Version->hardwareMajVersion, pk_Version->hardwareMinVersion);
+        Utils::Print(s8_Buf);
+        sprintf(s8_Buf, "Software Version: %d.%d\r\n", pk_Version->softwareMajVersion, pk_Version->softwareMinVersion);
+        Utils::Print(s8_Buf);
+        sprintf(s8_Buf, "EEPROM size:      %d byte\r\n", 1 << (pk_Version->hardwareStorageSize / 2));
+        Utils::Print(s8_Buf);
+        sprintf(s8_Buf, "Production:       week %X, year 20%02X\r\n", pk_Version->cwProd, pk_Version->yearProd);
+        Utils::Print(s8_Buf);
+        Utils::Print("UID no:           ");         
+        Utils::PrintHexBuf(pk_Version->uid, 7, LF);
+        Utils::Print("Batch no:         ");         
+        Utils::PrintHexBuf(pk_Version->batchNo, 5, LF);
+    }
+    return true;
+}
+
+bool PN532::FormatCard()
+{
+    if (mu8_DebugLevel > 0) Utils::Print("\r\n*** FormatCard()\r\n");
+
+    return (0 == DataExchange(DF_INS_FORMAT_PICC, NULL, NULL, 0, NULL, MAC_TmacRmac));
+}
+
+bool PN532::EnableRandomIDForever()
+{
+    if (mu8_DebugLevel > 0) Utils::Print("\r\n*** EnableRandomIDForever()\r\n");
+
+    TX_BUFFER(i_Command, 2);
+    i_Command.AppendUint8(DFEV1_INS_SET_CONFIGURATION);
+    i_Command.AppendUint8(0x00); // subcommand 00
+    
+    TX_BUFFER(i_Params, 16);
+    i_Params.AppendUint8(0x02); // 0x02 = enable random ID, 0x01 = disable format
+
+    // The TX CMAC must not be calculated here because a CBC encryption operation has already been executed
+    return (0 == DataExchange(&i_Command, &i_Params, NULL, 0, NULL, MAC_TcryptRmac));
+}
+
 }  // namespace pn532
 }  // namespace esphome
