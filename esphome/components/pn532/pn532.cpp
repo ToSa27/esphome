@@ -62,12 +62,12 @@ void PN532::set_application_id(const std::string &application_id) {
     this->CARD_APPLICATION_ID = (uint32_t)strtol(application_id.c_str(), NULL, 16);
 }
 
-void PN532::set_file_id(const std::string &file_id) { 
-    this->CARD_FILE_ID = (byte)strtol(file_id.c_str(), NULL, 10);
+void PN532::set_file_id(const byte file_id) { 
+    this->CARD_FILE_ID = file_id;
 }
 
-void PN532::set_key_version(const std::string &key_version) { 
-    this->CARD_KEY_VERSION = (byte)strtol(key_version.c_str(), NULL, 10);
+void PN532::set_key_version(const byte key_version) { 
+    this->CARD_KEY_VERSION = key_version;
 }
 
 void PN532::setup() {

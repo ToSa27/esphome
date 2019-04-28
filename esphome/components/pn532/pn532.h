@@ -400,8 +400,8 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
   void set_application_key(const std::string &application_key);
   void set_value_key(const std::string &value_key);
   void set_application_id(const std::string &application_id);
-  void set_file_id(const std::string &file_id);
-  void set_key_version(const std::string &key_version);
+  void set_file_id(const byte file_id);
+  void set_key_version(const byte key_version);
 
     PN532();
 //    bool GetCardVersion(DESFireCardVersion* pk_Version);
