@@ -4,7 +4,6 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/spi/spi.h"
-//#include "PN532X.h"
 #include "DES.h"
 #include "AES128.h"
 #include "Buffer.h"
@@ -397,6 +396,12 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
 
   void set_card_type(const std::string &card_type);
   std::string get_card_type();
+  void set_master_key(const std::string &master_key);
+  void set_application_key(const std::string &application_key);
+  void set_value_key(const std::string &value_key);
+  void set_application_id(const std::string &application_id);
+  void set_file_id(const std::string &file_id);
+  void set_key_version(const std::string &key_version);
 
     PN532();
 //    bool GetCardVersion(DESFireCardVersion* pk_Version);
@@ -430,8 +435,8 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
     byte GetLastPN532Error(); // See comment for this function in CPP file
 
     DES  DES2_DEFAULT_KEY; // 2K3DES key with  8 zeroes {00,00,00,00,00,00,00,00}
-    DES  DES3_DEFAULT_KEY; // 3K3DES key with 24 zeroes 
-    AES   AES_DEFAULT_KEY; // AES    key with 16 zeroes
+//    DES  DES3_DEFAULT_KEY; // 3K3DES key with 24 zeroes 
+//    AES  AES_DEFAULT_KEY; // AES    key with 16 zeroes
 
     byte mu8_DebugLevel;   // 0, 1, or 2
     byte mu8_PacketBuffer[PN532_PACKBUFFSIZE];
@@ -486,6 +491,13 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
   bool CheckPN532Status(byte u8_Status);
 
 private:
+    byte SECRET_PICC_MASTER_KEY[24];
+    byte SECRET_APPLICATION_KEY[24];
+    byte SECRET_STORE_VALUE_KEY[24];
+    uint32_t CARD_APPLICATION_ID;
+    byte CARD_FILE_ID;
+    byte CARD_KEY_VERSION;
+
     int  DataExchange(byte      u8_Command, TxBuffer* pi_Params, byte* u8_RecvBuf, int s32_RecvSize, DESFireStatus* pe_Status, DESFireCmac e_Mac);
     int  DataExchange(TxBuffer* pi_Command, TxBuffer* pi_Params, byte* u8_RecvBuf, int s32_RecvSize, DESFireStatus* pe_Status, DESFireCmac e_Mac);    
     bool CheckCardStatus(DESFireStatus e_Status);

@@ -14,10 +14,19 @@ PN532Trigger = pn532_ns.class_('PN532Trigger', automation.Trigger.template(cg.st
 
 
 def validate_card_type(value):
+    value = cv.string_strict(value)
     if value not in ['classic', 'ev1_des', 'ev1_aes']:
         raise cv.Invalid("Valid cart types: classic, ev1_des or ev1_aes.")
     return value
 
+def validate_hex(value, len):
+    value = cv.string_strict(value)
+    if len(value) != len * 2:
+        raise cv.Invalid("Invalid length - must be a hex string with {0} hex chars ({1} byte).".format(len * 2, len))
+    for c in value:
+        if c not in string.hexdigits:
+            raise cv.Invalid("Invalid character - not a hex character: {0}.".format(c))
+    return value
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(PN532),
@@ -25,6 +34,12 @@ CONFIG_SCHEMA = cv.Schema({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PN532Trigger),
     }),
     cv.Optional(CONF_CARD_TYPE): validate_card_type,
+    cv.Optional(CONF_MASTER_KEY): validate_hex(len=24),
+    cv.Optional(CONF_APPLICATION_KEY): validate_hex(len=24),
+    cv.Optional(CONF_VALUE_KEY): validate_hex(len=24),
+    cv.Optional(CONF_APPLICATION_ID): validate_hex(len=6),
+    cv.Optional(CONF_FILE_ID): cv.All(cv.int_, cv.Range(min=0, max=32)),
+    cv.Optional(CONF_KEY_VERSION): cv.All(cv.int_, cv.Range(min=1, max=255)),,
 }).extend(cv.polling_component_schema('1s')).extend(spi.SPI_DEVICE_SCHEMA)
 
 
@@ -40,3 +55,21 @@ def to_code(config):
 
     if CONF_CARD_TYPE in config:
         cg.add(var.set_card_type(config[CONF_CARD_TYPE]))
+
+    if CONF_MASTER_KEY in config:
+        cg.add(var.set_card_type(config[CONF_MASTER_KEY]))
+
+    if CONF_APPLICATION_KEY in config:
+        cg.add(var.set_card_type(config[CONF_APPLICATION_KEY]))
+
+    if CONF_VALUE_KEY in config:
+        cg.add(var.set_card_type(config[CONF_VALUE_KEY]))
+
+    if CONF_APPLICATION_ID in config:
+        cg.add(var.set_card_type(config[CONF_APPLICATION_ID]))
+
+    if CONF_FILE_ID in config:
+        cg.add(var.set_card_type(config[CONF_FILE_ID]))
+
+    if CONF_KEY_VERSION in config:
+        cg.add(var.set_card_type(config[CONF_KEY_VERSION]))

@@ -1,6 +1,5 @@
 #include "pn532.h"
 #include "esphome/core/log.h"
-#include "Secrets.h"
 
 // Based on:
 // - https://cdn-shop.adafruit.com/datasheets/PN532C106_Application+Note_v1.2.pdf
@@ -33,8 +32,8 @@ PN532::PN532()
     // The PICC master key on an empty card is a simple DES key filled with 8 zeros
     const byte ZERO_KEY[24] = {0};
     DES2_DEFAULT_KEY.SetKeyData(ZERO_KEY,  8, 0); // simple DES
-    DES3_DEFAULT_KEY.SetKeyData(ZERO_KEY, 24, 0); // triple DES
-     AES_DEFAULT_KEY.SetKeyData(ZERO_KEY, 16, 0);
+//    DES3_DEFAULT_KEY.SetKeyData(ZERO_KEY, 24, 0); // triple DES
+//    AES_DEFAULT_KEY.SetKeyData(ZERO_KEY, 16, 0);
 }
 
 void PN532::set_card_type(const std::string &card_type) { this->card_type_ = card_type; }
@@ -42,6 +41,33 @@ std::string PN532::get_card_type() {
   if (this->card_type_.length() > 0)
     return this->card_type_;
   return "classic";
+}
+
+void PN532::set_master_key(const std::string &master_key) { 
+    for (int i = 0; i < master_key.length() / 2; i++)
+        this->SECRET_PICC_MASTER_KEY[i] = (byte)strtol(master_key.substr(i * 2, 2).c_str(), NULL, 16);
+}
+
+void PN532::set_application_key(const std::string &application_key) { 
+    for (int i = 0; i < application_key.length() / 2; i++)
+        this->SECRET_APPLICATION_KEY[i] = (byte)strtol(application_key.substr(i * 2, 2).c_str(), NULL, 16);
+}
+
+void PN532::set_value_key(const std::string &value_key) { 
+    for (int i = 0; i < value_key.length() / 2; i++)
+        this->SECRET_STORE_VALUE_KEY[i] = (byte)strtol(value_key.substr(i * 2, 2).c_str(), NULL, 16);
+}
+
+void PN532::set_application_id(const std::string &application_id) { 
+    this->CARD_APPLICATION_ID = (uint32_t)strtol(application_id.c_str(), NULL, 16);
+}
+
+void PN532::set_file_id(const std::string &file_id) { 
+    this->CARD_FILE_ID = (byte)strtol(file_id.c_str(), NULL, 10);
+}
+
+void PN532::set_key_version(const std::string &key_version) { 
+    this->CARD_KEY_VERSION = (byte)strtol(key_version.c_str(), NULL, 10);
 }
 
 void PN532::setup() {
