@@ -2,7 +2,7 @@
 #ifndef DESFIRE_H
 #define DESFIRE_H
 
-#include "PN532_.h"
+#include "PN532X.h"
 #include "DES.h"
 #include "AES128.h"
 #include "Buffer.h"
@@ -252,7 +252,7 @@ enum DESFireCmac
     MAC_TcryptRmac = MAC_Tcrypt | MAC_Rmac,
 };
 
-class Desfire : public PN532_
+class Desfire : public PN532X
 {
  public:
     Desfire();

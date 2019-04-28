@@ -140,10 +140,10 @@ enum eCardType
     CARD_DesRandom = 3, // A Desfire card with 4 byte random UID  (bit 0 + 1)
 };
 
-class PN532_
+class PN532X
 {
  public:
-    PN532_();
+    PN532X();
     
     #if USE_SOFTWARE_SPI
         void InitSoftwareSPI(byte u8_Clk, byte u8_Miso, byte u8_Mosi, byte u8_Sel, byte u8_Reset);

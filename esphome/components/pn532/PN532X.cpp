@@ -43,12 +43,12 @@
     
 **************************************************************************/
 
-#include "PN532_.h"
+#include "PN532X.h"
 
 /**************************************************************************
     Constructor
 **************************************************************************/
-PN532_::PN532_()
+PN532X::PN532X()
 {
     mu8_ClkPin     = 0;
     mu8_MisoPin    = 0;  
@@ -62,7 +62,7 @@ PN532_::PN532_()
     param  reset     The RSTPD_N pin
 **************************************************************************/
 #if USE_HARDWARE_I2C
-    void PN532_::InitI2C(byte u8_Reset)
+    void PN532X::InitI2C(byte u8_Reset)
     {
         mu8_ResetPin = u8_Reset;
         Utils::SetPinMode(mu8_ResetPin, OUTPUT);
@@ -78,7 +78,7 @@ PN532_::PN532_()
     param  reset     Location of the RSTPD_N pin
 **************************************************************************/
 #if USE_SOFTWARE_SPI
-    void PN532_::InitSoftwareSPI(byte u8_Clk, byte u8_Miso, byte u8_Mosi, byte u8_Sel, byte u8_Reset)
+    void PN532X::InitSoftwareSPI(byte u8_Clk, byte u8_Miso, byte u8_Mosi, byte u8_Sel, byte u8_Reset)
     {
         /*
         mu8_ClkPin     = u8_Clk;
@@ -102,7 +102,7 @@ PN532_::PN532_()
     param  reset     Location of the RSTPD_N pin
 **************************************************************************/
 #if USE_HARDWARE_SPI
-    void PN532_::InitHardwareSPI(byte u8_Sel, byte u8_Reset)
+    void PN532X::InitHardwareSPI(byte u8_Sel, byte u8_Reset)
     {
         mu8_SselPin  = u8_Sel;
         mu8_ResetPin = u8_Reset;
@@ -115,7 +115,7 @@ PN532_::PN532_()
 /**************************************************************************
     Reset the PN532, wake up and start communication
 **************************************************************************/
-void PN532_::begin() 
+void PN532X::begin() 
 {
     /*
     if (mu8_DebugLevel > 0) Utils::Print("\r\n*** begin()\r\n");
@@ -156,7 +156,7 @@ void PN532_::begin()
     Enable / disable debug output to SerialClass
     0 = Off, 1 = high level debug, 2 = low level debug (more details)
 **************************************************************************/
-void PN532_::SetDebugLevel(byte level)
+void PN532X::SetDebugLevel(byte level)
 {
     mu8_DebugLevel = level;
 }
@@ -170,7 +170,7 @@ void PN532_::SetDebugLevel(byte level)
     pFlags, bit 1 = Support of ISO 14443B
     pFlags, bit 2 = Support of ISO 18092
 **************************************************************************/
-bool PN532_::GetFirmwareVersion(byte* pIcType, byte* pVersionHi, byte* pVersionLo, byte* pFlags) 
+bool PN532X::GetFirmwareVersion(byte* pIcType, byte* pVersionHi, byte* pVersionLo, byte* pFlags) 
 {
     if (mu8_DebugLevel > 0) Utils::Print("\r\n*** GetFirmwareVersion()\r\n");
     
@@ -195,7 +195,7 @@ bool PN532_::GetFirmwareVersion(byte* pIcType, byte* pVersionHi, byte* pVersionL
 /**************************************************************************
     Configures the SAM (Secure Access Module)
 **************************************************************************/
-bool PN532_::SamConfig(void)
+bool PN532X::SamConfig(void)
 {
     if (mu8_DebugLevel > 0) Utils::Print("\r\n*** SamConfig()\r\n");
   
@@ -219,7 +219,7 @@ bool PN532_::SamConfig(void)
 /**************************************************************************
     Sets the amount of reties that the PN532 tries to activate a target
 **************************************************************************/
-bool PN532_::SetPassiveActivationRetries() 
+bool PN532X::SetPassiveActivationRetries() 
 {
     if (mu8_DebugLevel > 0) Utils::Print("\r\n*** SetPassiveActivationRetries()\r\n");
   
@@ -247,7 +247,7 @@ bool PN532_::SetPassiveActivationRetries()
     When the field is off, the PN532 consumes approx 18 mA
     The RF field is turned on again by ReadPassiveTargetID().
 **************************************************************************/
-bool PN532_::SwitchOffRfField() 
+bool PN532X::SwitchOffRfField() 
 {
     if (mu8_DebugLevel > 0) Utils::Print("\r\n*** SwitchOffRfField()\r\n");
   
@@ -291,7 +291,7 @@ bool PN532_::SwitchOffRfField()
     and the red LED would never flash.
 */
 /**************************************************************************/
-bool PN532_::WriteGPIO(bool P30, bool P31, bool P33, bool P35)
+bool PN532X::WriteGPIO(bool P30, bool P31, bool P33, bool P35)
 {
     if (mu8_DebugLevel > 0) Utils::Print("\r\n*** WriteGPIO()\r\n");
   
@@ -331,7 +331,7 @@ bool PN532_::WriteGPIO(bool P30, bool P31, bool P33, bool P35)
     returns true and *UidLength = 0 if no card was found
     returns true and *UidLength > 0 if a card has been read successfully
 **************************************************************************/
-bool PN532_::ReadPassiveTargetID(byte* u8_UidBuffer, byte* pu8_UidLength, eCardType* pe_CardType) 
+bool PN532X::ReadPassiveTargetID(byte* u8_UidBuffer, byte* pu8_UidLength, eCardType* pe_CardType) 
 {
     if (mu8_DebugLevel > 0) Utils::Print("\r\n*** ReadPassiveTargetID()\r\n");
       
@@ -424,7 +424,7 @@ bool PN532_::ReadPassiveTargetID(byte* u8_UidBuffer, byte* pu8_UidLength, eCardT
     The goal of this command is to select the target. (Initialization, anti-collision loop and Selection)
     If the target is already selected, no action is performed and Status OK is returned. 
 **************************************************************************/
-bool PN532_::SelectCard()
+bool PN532X::SelectCard()
 {
     if (mu8_DebugLevel > 0) Utils::Print("\r\n*** SelectCard()\r\n");
   
@@ -453,7 +453,7 @@ bool PN532_::SelectCard()
     So, after an authentication error you must first deselect the card before
     authenticating a new sector!
 **************************************************************************/
-bool PN532_::DeselectCard()
+bool PN532X::DeselectCard()
 {
     if (mu8_DebugLevel > 0) Utils::Print("\r\n*** DeselectCard()\r\n");
   
@@ -478,7 +478,7 @@ bool PN532_::DeselectCard()
     Releasing a target means that the host controller has finished the communication with 
     the target, so the PN532 erases all the information relative to it. 
 **************************************************************************/
-bool PN532_::ReleaseCard()
+bool PN532X::ReleaseCard()
 {
     if (mu8_DebugLevel > 0) Utils::Print("\r\n*** ReleaseCard()\r\n");
   
@@ -504,7 +504,7 @@ bool PN532_::ReleaseCard()
     See chapter 7.1 in the manual.
     u8_Status = the status byte
 **************************************************************************/
-bool PN532_::CheckPN532Status(byte u8_Status)
+bool PN532X::CheckPN532Status(byte u8_Status)
 {
     // Bits 0...5 contain the error code.
     u8_Status &= 0x3F;
@@ -610,7 +610,7 @@ bool PN532_::CheckPN532Status(byte u8_Status)
 /**************************************************************************
     Return true if the PN532 is ready with a response.
 **************************************************************************/
-bool PN532_::IsReady() 
+bool PN532X::IsReady() 
 {
     return pn->is_ready_();
     /*
@@ -657,7 +657,7 @@ bool PN532_::IsReady()
 /**************************************************************************
     Waits until the PN532 is ready.
 **************************************************************************/
-bool PN532_::WaitReady() 
+bool PN532X::WaitReady() 
 {
     uint16_t timer = 0;
     while (!IsReady()) 
@@ -681,7 +681,7 @@ bool PN532_::WaitReady()
     returns  true  if everything is OK, 
              false if timeout occured before an ACK was recieved
 **************************************************************************/
-bool PN532_::SendCommandCheckAck(byte *cmd, byte cmdlen) 
+bool PN532X::SendCommandCheckAck(byte *cmd, byte cmdlen) 
 {
     WriteCommand(cmd, cmdlen);
     return ReadAck();
@@ -694,7 +694,7 @@ bool PN532_::SendCommandCheckAck(byte *cmd, byte cmdlen)
     param  cmd       Command buffer
     param  cmdlen    Command length in bytes
 **************************************************************************/
-void PN532_::WriteCommand(byte* cmd, byte cmdlen)
+void PN532X::WriteCommand(byte* cmd, byte cmdlen)
 {
     std::vector<uint8_t> wb;
     for (int i = 0; i < cmdlen; i++)
@@ -737,7 +737,7 @@ void PN532_::WriteCommand(byte* cmd, byte cmdlen)
 /**************************************************************************
     Send a data packet
 **************************************************************************/
-void PN532_::SendPacket(byte* buff, byte len)
+void PN532X::SendPacket(byte* buff, byte len)
 {
     /*
     #if (USE_HARDWARE_SPI || USE_SOFTWARE_SPI) 
@@ -774,7 +774,7 @@ void PN532_::SendPacket(byte* buff, byte len)
 /**************************************************************************
     Read the ACK packet (acknowledge)
 **************************************************************************/
-bool PN532_::ReadAck() 
+bool PN532X::ReadAck() 
 {
     const byte Ack[] = {0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00};
     byte ackbuff[sizeof(Ack)];
@@ -804,7 +804,7 @@ bool PN532_::ReadAck()
     param  len       Number of bytes to read
     returns the number of bytes that have been copied to buff (< len) or 0 on error
 **************************************************************************/
-byte PN532_::ReadData(byte* buff, byte len) 
+byte PN532X::ReadData(byte* buff, byte len) 
 { 
     byte RxBuffer[PN532_PACKBUFFSIZE];
         
@@ -921,7 +921,7 @@ byte PN532_::ReadData(byte* buff, byte len)
     param  buff      Pointer to the buffer where data will be written
     param  len       Number of bytes to read
 **************************************************************************/
-bool PN532_::ReadPacket(byte* buff, byte len)
+bool PN532X::ReadPacket(byte* buff, byte len)
 { 
     if (!WaitReady())
         return false;
@@ -981,7 +981,7 @@ bool PN532_::ReadPacket(byte* buff, byte len)
 /**************************************************************************
     SPI write one byte
 **************************************************************************/
-void PN532_::SpiWrite(byte c) 
+void PN532X::SpiWrite(byte c) 
 {
     pn->write_byte((uint8_t)c);
     /*
@@ -1014,7 +1014,7 @@ void PN532_::SpiWrite(byte c)
 /**************************************************************************
     SPI read one byte
 **************************************************************************/
-byte PN532_::SpiRead(void) 
+byte PN532X::SpiRead(void) 
 {
     return (byte)pn->read_byte();
     /*
