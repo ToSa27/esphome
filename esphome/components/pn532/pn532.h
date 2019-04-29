@@ -374,6 +374,10 @@ enum eCardType
 
 struct kCard
 {
+    union {
+      uint64_t  u64;      
+      byte      u8[8];
+    } Uid;
     byte     u8_UidLength;   // UID = 4 or 7 bytes
     byte     u8_KeyVersion;  // for Desfire random ID cards
     bool      b_PN532_Error; // true -> the error comes from the PN532, false -> crypto error
@@ -473,13 +477,8 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
 
   DES gi_PiccMasterKey_DES;
   AES gi_PiccMasterKey_AES;
-  union 
-  {
-      uint64_t  u64;      
-      byte      u8[8];
-  } last_uid;
-  uint8_t last_uid_len;
-  bool ReadCard(uint8_t* u8_UID, kCard* pk_Card);
+  kCard last_card;
+  bool ReadCard(kCard* pk_Card);
   bool AuthenticatePICC(byte* pu8_KeyVersion);
   bool CheckDesfireSecret(uint8_t* user_id);
   bool GenerateDesfireSecrets(uint8_t* user_id, DESFireKey* pi_AppMasterKey, byte u8_StoreValue[16]);

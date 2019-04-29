@@ -5,6 +5,7 @@
 // - https://cdn-shop.adafruit.com/datasheets/PN532C106_Application+Note_v1.2.pdf
 // - https://www.nxp.com/docs/en/nxp/application-notes/AN133910.pdf
 // - https://www.nxp.com/docs/en/nxp/application-notes/153710.pdf
+// - https://www.codeproject.com/Articles/1096861/DIY-electronic-RFID-Door-Lock-with-Battery-Backup
 
 namespace esphome {
 namespace pn532 {
@@ -383,11 +384,11 @@ bool PN532::ReadPassiveTargetID(byte* u8_UidBuffer, byte* pu8_UidLength, eCardTy
     return true;
 }
 
-bool PN532::ReadCard(uint8_t* u8_UID, kCard* pk_Card)
+bool PN532::ReadCard(kCard* pk_Card)
 {
     memset(pk_Card, 0, sizeof(kCard));
   
-    if (!this->ReadPassiveTargetID(u8_UID, &pk_Card->u8_UidLength, &pk_Card->e_CardType))
+    if (!this->ReadPassiveTargetID((byte*)&pk_Card->Uid.u8, &pk_Card->u8_UidLength, &pk_Card->e_CardType))
     {
         pk_Card->b_PN532_Error = true;
         return false;
@@ -403,7 +404,7 @@ bool PN532::ReadCard(uint8_t* u8_UID, kCard* pk_Card)
         return false;
         
       // replace the random ID with the real UID
-      if (!this->GetRealCardID(u8_UID))
+      if (!this->GetRealCardID((byte*)&pk_Card->Uid.u8))
         return false;
 
       pk_Card->u8_UidLength = 7; // random ID is only 4 bytes
@@ -890,13 +891,8 @@ bool PN532::ChangeKey(byte u8_KeyNo, DESFireKey* pi_NewKey, DESFireKey* pi_CurKe
 void PN532::update() {
   for (auto *obj : this->binary_sensors_)
     obj->on_scan_end();
-  union 
-  {
-      uint64_t  u64;      
-      byte      u8[8];
-  } user_id;
   kCard k_Card;
-  if (!ReadCard(user_id.u8, &k_Card))
+  if (!ReadCard(&k_Card))
   {
       if (this->GetLastPN532Error() == 0x01)
       {
@@ -923,9 +919,9 @@ void PN532::update() {
   }
   // no card detected
   if (k_Card.u8_UidLength == 0) 
-      last_uid.u64 = 0;
+      last_card.Uid.u64 = 0;
   // same card as before
-  if (last_uid.u64 == user_id.u64) 
+  if (last_card.Uid.u64 == k_Card.Uid.u64) 
     return;
   // classic card (insecure)
   if ((k_Card.e_CardType & CARD_Desfire) == 0)
@@ -938,7 +934,7 @@ void PN532::update() {
   }
   else // default Desfire card
   {
-    if (!CheckDesfireSecret(user_id.u8))
+    if (!CheckDesfireSecret(k_Card.Uid.u8))
     {
       if (this->GetLastPN532Error() == 0x01) // Prints additional error message and blinks the red LED
         return;
@@ -946,8 +942,8 @@ void PN532::update() {
       return;
     }
   }
-  last_uid.u64 = user_id.u64;
-  last_uid_len = k_Card.u8_UidLength;
+  last_card.Uid.u64 = k_Card.Uid.u64;
+  last_card.u8_UidLength = k_Card.u8_UidLength;
   this->status_clear_warning();
   this->requested_read_ = true;
 }
@@ -960,11 +956,11 @@ void PN532::loop() {
   bool report = true;
   // 1. Go through all triggers
   for (auto *trigger : this->triggers_)
-    trigger->process(last_uid.u8, last_uid_len);
+    trigger->process(last_card.Uid.u8, last_card.u8_UidLength);
 
   // 2. Find a binary sensor
   for (auto *tag : this->binary_sensors_) {
-    if (tag->process(last_uid.u8, last_uid_len)) {
+    if (tag->process(last_card.Uid.u8, last_card.u8_UidLength)) {
       // 2.1 if found, do not dump
       report = false;
     }
@@ -972,7 +968,7 @@ void PN532::loop() {
 
   if (report) {
     char buf[32];
-    format_uid(buf, last_uid.u8, last_uid_len);
+    format_uid(buf, last_card.Uid.u8, last_card.u8_UidLength);
     ESP_LOGD(TAG, "Found new tag '%s'", buf);
   }
 }
