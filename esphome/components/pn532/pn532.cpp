@@ -85,11 +85,13 @@ void PN532::setup() {
   delay(10);
 
   // send dummy firmware version command to get synced up
-  this->pn532_write_command_check_ack_({0x02});  // get firmware version command
+  this->pn532_write_command_check_ack_({
+      PN532_COMMAND_GETFIRMWAREVERSION
+  });
   // do not actually read any data, this should be OK according to datasheet
 
   this->pn532_write_command_({
-      0x14,  // SAM config command
+      PN532_COMMAND_SAMCONFIGURATION,
       0x01,  // normal mode
       0x14,  // zero timeout (not in virtual card mode)
       0x01,
@@ -113,7 +115,7 @@ void PN532::setup() {
 
   // Set max retries
   bool ret = this->pn532_write_command_check_ack_({
-      0x32,         // Reconfigure command
+      PN532_COMMAND_RFCONFIGURATION,
       0x05,         // Config item 5 : Max retries
       0xFF,         // MxRtyATR (default = 0xFF)
       0x01,         // MxRtyPSL (default = 0x01)
@@ -140,7 +142,7 @@ void PN532::setup() {
   // Set up SAM (secure access module)
   uint8_t sam_timeout = std::min(255u, this->update_interval_ / 50);
   ret = this->pn532_write_command_check_ack_({
-      0x14,         // SAM config command
+      PN532_COMMAND_SAMCONFIGURATION,
       0x01,         // normal mode
       sam_timeout,  // timeout as multiple of 50ms (actually only for virtual card mode, but shouldn't matter)
       0x01,         // Enable IRQ
@@ -177,7 +179,7 @@ bool PN532::ReadPacket(byte* buff, byte len)
 
     this->enable();
     delay(2);
-    this->write_byte(0x03);
+    this->write_byte(PN532_SPI_DATAREAD);
     this->read_array(buff, len);
     this->disable();
     return true;
@@ -979,14 +981,14 @@ void PN532::pn532_write_command_(const std::vector<uint8_t> &data) {
   this->enable();
   delay(2);
   // First byte, communication mode: Write data
-  this->write_byte(0x01);
+  this->write_byte(PN532_SPI_DATAWRITE);
 
   // Preamble
-  this->write_byte(0x00);
+  this->write_byte(PN532_PREAMBLE);
 
   // Start code
-  this->write_byte(0x00);
-  this->write_byte(0xFF);
+  this->write_byte(PN532_STARTCODE1);
+  this->write_byte(PN532_STARTCODE2);
 
   // Length of message, TFI + data bytes
   const uint8_t real_length = data.size() + 1;
@@ -996,9 +998,9 @@ void PN532::pn532_write_command_(const std::vector<uint8_t> &data) {
   this->write_byte(~real_length + 1);
 
   // TFI (Frame Identifier, 0xD4 means to PN532, 0xD5 means from PN532)
-  this->write_byte(0xD4);
+  this->write_byte(PN532_HOSTTOPN532);
   // calculate checksum, TFI is part of checksum
-  uint8_t checksum = 0xD4;
+  uint8_t checksum = PN532_HOSTTOPN532;
 
   // DATA
   for (uint8_t dat : data) {
@@ -1009,7 +1011,7 @@ void PN532::pn532_write_command_(const std::vector<uint8_t> &data) {
   // DCS (Data checksum)
   this->write_byte(~checksum + 1);
   // Postamble
-  this->write_byte(0x00);
+  this->write_byte(PN532_POSTAMBLE);
 
   this->disable();
 }
@@ -1035,21 +1037,21 @@ std::vector<uint8_t> PN532::pn532_read_data_() {
   this->enable();
   delay(2);
   // Read data (transmission from the PN532 to the host)
-  this->write_byte(0x03);
+  this->write_byte(PN532_SPI_DATAREAD);
 
   // sometimes preamble is not transmitted for whatever reason
   // mostly happens during startup.
   // just read the first two bytes and check if that is the case
   uint8_t header[6];
   this->read_array(header, 2);
-  if (header[0] == 0x00 && header[1] == 0x00) {
+  if (header[0] == PN532_PREAMBLE && header[1] == PN532_STARTCODE1) {
     // normal packet, preamble included
     this->read_array(header + 2, 4);
-  } else if (header[0] == 0x00 && header[1] == 0xFF) {
+  } else if (header[0] == PN532_STARTCODE1 && header[1] == PN532_STARTCODE2) {
     // weird packet, preamble skipped; make it look like a normal packet
-    header[0] = 0x00;
-    header[1] = 0x00;
-    header[2] = 0xFF;
+    header[0] = PN532_PREAMBLE;
+    header[1] = PN532_STARTCODE1;
+    header[2] = PN532_STARTCODE2;
     this->read_array(header + 3, 3);
   } else {
     // invalid packet
@@ -1058,10 +1060,10 @@ std::vector<uint8_t> PN532::pn532_read_data_() {
     return {};
   }
 
-  bool valid_header = (header[0] == 0x00 &&                                                      // preamble
-                       header[1] == 0x00 &&                                                      // start code
-                       header[2] == 0xFF && static_cast<uint8_t>(header[3] + header[4]) == 0 &&  // LCS, len + lcs = 0
-                       header[5] == 0xD5  // TFI - frame from PN532 to system controller
+  bool valid_header = (header[0] == PN532_PREAMBLE &&                                                      // preamble
+                       header[1] == PN532_STARTCODE1 &&                                                      // start code
+                       header[2] == PN532_STARTCODE2 && static_cast<uint8_t>(header[3] + header[4]) == 0 &&  // LCS, len + lcs = 0
+                       header[5] == PN532_PN532TOHOST  // TFI - frame from PN532 to system controller
   );
   if (!valid_header) {
     this->disable();
@@ -1080,7 +1082,7 @@ std::vector<uint8_t> PN532::pn532_read_data_() {
   ret.resize(len);
   this->read_array(ret.data(), len);
 
-  uint8_t checksum = 0xD5;
+  uint8_t checksum = PN532_PN532TOHOST;
   for (uint8_t dat : ret)
     checksum += dat;
   checksum = ~checksum + 1;
@@ -1092,7 +1094,7 @@ std::vector<uint8_t> PN532::pn532_read_data_() {
     return {};
   }
 
-  if (this->read_byte() != 0x00) {
+  if (this->read_byte() != PN532_POSTAMBLE) {
     this->disable();
     ESP_LOGV(TAG, "read data invalid postamble!");
     return {};
@@ -1111,7 +1113,7 @@ std::vector<uint8_t> PN532::pn532_read_data_() {
 bool PN532::is_ready_() {
   this->enable();
   // First byte, communication mode: Read state
-  this->write_byte(0x02);
+  this->write_byte(PN532_SPI_STATUSREAD);
   // PN532 returns a single data byte,
   // "After having sent a command, the host controller must wait for bit 0 of Status byte equals 1
   // before reading the data from the PN532."
@@ -1128,7 +1130,7 @@ bool PN532::read_ack_() {
   this->enable();
   delay(2);
   // "Read data (transmission from the PN532 to the host) "
-  this->write_byte(0x03);
+  this->write_byte(PN532_SPI_DATAREAD);
 
   uint8_t ack[6];
   memset(ack, 0, sizeof(ack));
@@ -1136,10 +1138,12 @@ bool PN532::read_ack_() {
   this->read_array(ack, 6);
   this->disable();
 
-  bool matches = (ack[0] == 0x00 &&                    // preamble
-                  ack[1] == 0x00 &&                    // start of packet
-                  ack[2] == 0xFF && ack[3] == 0x00 &&  // ACK packet code
-                  ack[4] == 0xFF && ack[5] == 0x00     // postamble
+  bool matches = (ack[0] == PN532_PREAMBLE &&                    // preamble
+                  ack[1] == PN532_STARTCODE1 &&                    // start of packet
+                  ack[2] == PN532_STARTCODE2 && 
+                  ack[3] == 0x00 &&  // ACK packet code
+                  ack[4] == 0xFF && 
+                  ack[5] == PN532_POSTAMBLE     // postamble
   );
   ESP_LOGVV(TAG, "ACK valid: %s", YESNO(matches));
   return matches;
@@ -1897,6 +1901,7 @@ bool PN532::CheckPN532Status(byte u8_Status)
     }
 }
 
+/*
 bool PN532::GetCardVersion(DESFireCardVersion* pk_Version)
 {
     if (mu8_DebugLevel > 0) Utils::Print("\r\n*** GetCardVersion()\r\n");
@@ -1937,6 +1942,7 @@ bool PN532::GetCardVersion(DESFireCardVersion* pk_Version)
     }
     return true;
 }
+*/
 
 bool PN532::FormatCard()
 {

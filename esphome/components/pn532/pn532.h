@@ -14,16 +14,16 @@ namespace pn532 {
 class PN532BinarySensor;
 class PN532Trigger;
 
-// Just an invalid key number
+// // Just an invalid key number
 #define NOT_AUTHENTICATED      255
 
 #define MAX_FRAME_SIZE         60 // The maximum total length of a packet that is transfered to / from the card
 
-// ------- Desfire legacy instructions --------
+// // ------- Desfire legacy instructions --------
 
-#define DF_INS_AUTHENTICATE_LEGACY        0x0A
+// #define DF_INS_AUTHENTICATE_LEGACY        0x0A
 #define DF_INS_CHANGE_KEY_SETTINGS        0x54
-#define DF_INS_GET_KEY_SETTINGS           0x45
+// #define DF_INS_GET_KEY_SETTINGS           0x45
 #define DF_INS_CHANGE_KEY                 0xC4
 #define DF_INS_GET_KEY_VERSION            0x64
 
@@ -35,52 +35,52 @@ class PN532Trigger;
 #define DF_INS_FORMAT_PICC                0xFC
 #define DF_INS_GET_VERSION                0x60
 
-#define DF_INS_GET_FILE_IDS               0x6F
-#define DF_INS_GET_FILE_SETTINGS          0xF5
-#define DF_INS_CHANGE_FILE_SETTINGS       0x5F
+// #define DF_INS_GET_FILE_IDS               0x6F
+// #define DF_INS_GET_FILE_SETTINGS          0xF5
+// #define DF_INS_CHANGE_FILE_SETTINGS       0x5F
 #define DF_INS_CREATE_STD_DATA_FILE       0xCD
-#define DF_INS_CREATE_BACKUP_DATA_FILE    0xCB
-#define DF_INS_CREATE_VALUE_FILE          0xCC
-#define DF_INS_CREATE_LINEAR_RECORD_FILE  0xC1
-#define DF_INS_CREATE_CYCLIC_RECORD_FILE  0xC0
-#define DF_INS_DELETE_FILE                0xDF
+// #define DF_INS_CREATE_BACKUP_DATA_FILE    0xCB
+// #define DF_INS_CREATE_VALUE_FILE          0xCC
+// #define DF_INS_CREATE_LINEAR_RECORD_FILE  0xC1
+// #define DF_INS_CREATE_CYCLIC_RECORD_FILE  0xC0
+// #define DF_INS_DELETE_FILE                0xDF
 
 #define DF_INS_READ_DATA                  0xBD
 #define DF_INS_WRITE_DATA                 0x3D
-#define DF_INS_GET_VALUE                  0x6C
-#define DF_INS_CREDIT                     0x0C
-#define DF_INS_DEBIT                      0xDC
-#define DF_INS_LIMITED_CREDIT             0x1C
-#define DF_INS_WRITE_RECORD               0x3B
-#define DF_INS_READ_RECORDS               0xBB
-#define DF_INS_CLEAR_RECORD_FILE          0xEB
-#define DF_COMMIT_TRANSACTION             0xC7
-#define DF_INS_ABORT_TRANSACTION          0xA7
+// #define DF_INS_GET_VALUE                  0x6C
+// #define DF_INS_CREDIT                     0x0C
+// #define DF_INS_DEBIT                      0xDC
+// #define DF_INS_LIMITED_CREDIT             0x1C
+// #define DF_INS_WRITE_RECORD               0x3B
+// #define DF_INS_READ_RECORDS               0xBB
+// #define DF_INS_CLEAR_RECORD_FILE          0xEB
+// #define DF_COMMIT_TRANSACTION             0xC7
+// #define DF_INS_ABORT_TRANSACTION          0xA7
 
 #define DF_INS_ADDITIONAL_FRAME           0xAF // data did not fit into a frame, another frame will follow
 
-// -------- Desfire EV1 instructions ----------
+// // -------- Desfire EV1 instructions ----------
 
 #define DFEV1_INS_AUTHENTICATE_ISO        0x1A
 #define DFEV1_INS_AUTHENTICATE_AES        0xAA
-#define DFEV1_INS_FREE_MEM                0x6E
-#define DFEV1_INS_GET_DF_NAMES            0x6D
+// #define DFEV1_INS_FREE_MEM                0x6E
+// #define DFEV1_INS_GET_DF_NAMES            0x6D
 #define DFEV1_INS_GET_CARD_UID            0x51
-#define DFEV1_INS_GET_ISO_FILE_IDS        0x61
+// #define DFEV1_INS_GET_ISO_FILE_IDS        0x61
 #define DFEV1_INS_SET_CONFIGURATION       0x5C
 
-// ---------- ISO7816 instructions ------------
+// // ---------- ISO7816 instructions ------------
 
-#define ISO7816_INS_EXTERNAL_AUTHENTICATE 0x82
-#define ISO7816_INS_INTERNAL_AUTHENTICATE 0x88
-#define ISO7816_INS_APPEND_RECORD         0xE2
-#define ISO7816_INS_GET_CHALLENGE         0x84
-#define ISO7816_INS_READ_RECORDS          0xB2
-#define ISO7816_INS_SELECT_FILE           0xA4
-#define ISO7816_INS_READ_BINARY           0xB0
-#define ISO7816_INS_UPDATE_BINARY         0xD6
+// #define ISO7816_INS_EXTERNAL_AUTHENTICATE 0x82
+// #define ISO7816_INS_INTERNAL_AUTHENTICATE 0x88
+// #define ISO7816_INS_APPEND_RECORD         0xE2
+// #define ISO7816_INS_GET_CHALLENGE         0x84
+// #define ISO7816_INS_READ_RECORDS          0xB2
+// #define ISO7816_INS_SELECT_FILE           0xA4
+// #define ISO7816_INS_READ_BINARY           0xB0
+// #define ISO7816_INS_UPDATE_BINARY         0xD6
 
-#define PN532_TIMEOUT  1000
+// #define PN532_TIMEOUT  1000
 #define PN532_PACKBUFFSIZE   80
 
 #define PN532_PREAMBLE                      (0x00)
@@ -91,57 +91,57 @@ class PN532Trigger;
 #define PN532_HOSTTOPN532                   (0xD4)
 #define PN532_PN532TOHOST                   (0xD5)
 
-// PN532 Commands
-#define PN532_COMMAND_DIAGNOSE              (0x00)
+// // PN532 Commands
+// #define PN532_COMMAND_DIAGNOSE              (0x00)
 #define PN532_COMMAND_GETFIRMWAREVERSION    (0x02)
-#define PN532_COMMAND_GETGENERALSTATUS      (0x04)
-#define PN532_COMMAND_READREGISTER          (0x06)
-#define PN532_COMMAND_WRITEREGISTER         (0x08)
-#define PN532_COMMAND_READGPIO              (0x0C)
-#define PN532_COMMAND_WRITEGPIO             (0x0E)
-#define PN532_COMMAND_SETSERIALBAUDRATE     (0x10)
-#define PN532_COMMAND_SETPARAMETERS         (0x12)
+// #define PN532_COMMAND_GETGENERALSTATUS      (0x04)
+// #define PN532_COMMAND_READREGISTER          (0x06)
+// #define PN532_COMMAND_WRITEREGISTER         (0x08)
+// #define PN532_COMMAND_READGPIO              (0x0C)
+// #define PN532_COMMAND_WRITEGPIO             (0x0E)
+// #define PN532_COMMAND_SETSERIALBAUDRATE     (0x10)
+// #define PN532_COMMAND_SETPARAMETERS         (0x12)
 #define PN532_COMMAND_SAMCONFIGURATION      (0x14)
-#define PN532_COMMAND_POWERDOWN             (0x16)
+// #define PN532_COMMAND_POWERDOWN             (0x16)
 #define PN532_COMMAND_RFCONFIGURATION       (0x32)
-#define PN532_COMMAND_RFREGULATIONTEST      (0x58)
-#define PN532_COMMAND_INJUMPFORDEP          (0x56)
-#define PN532_COMMAND_INJUMPFORPSL          (0x46)
+// #define PN532_COMMAND_RFREGULATIONTEST      (0x58)
+// #define PN532_COMMAND_INJUMPFORDEP          (0x56)
+// #define PN532_COMMAND_INJUMPFORPSL          (0x46)
 #define PN532_COMMAND_INLISTPASSIVETARGET   (0x4A)
-#define PN532_COMMAND_INATR                 (0x50)
-#define PN532_COMMAND_INPSL                 (0x4E)
+// #define PN532_COMMAND_INATR                 (0x50)
+// #define PN532_COMMAND_INPSL                 (0x4E)
 #define PN532_COMMAND_INDATAEXCHANGE        (0x40)
-#define PN532_COMMAND_INCOMMUNICATETHRU     (0x42)
-#define PN532_COMMAND_INDESELECT            (0x44)
-#define PN532_COMMAND_INRELEASE             (0x52)
-#define PN532_COMMAND_INSELECT              (0x54)
-#define PN532_COMMAND_INAUTOPOLL            (0x60)
-#define PN532_COMMAND_TGINITASTARGET        (0x8C)
-#define PN532_COMMAND_TGSETGENERALBYTES     (0x92)
-#define PN532_COMMAND_TGGETDATA             (0x86)
-#define PN532_COMMAND_TGSETDATA             (0x8E)
-#define PN532_COMMAND_TGSETMETADATA         (0x94)
-#define PN532_COMMAND_TGGETINITIATORCOMMAND (0x88)
-#define PN532_COMMAND_TGRESPONSETOINITIATOR (0x90)
-#define PN532_COMMAND_TGGETTARGETSTATUS     (0x8A)
+// #define PN532_COMMAND_INCOMMUNICATETHRU     (0x42)
+// #define PN532_COMMAND_INDESELECT            (0x44)
+// #define PN532_COMMAND_INRELEASE             (0x52)
+// #define PN532_COMMAND_INSELECT              (0x54)
+// #define PN532_COMMAND_INAUTOPOLL            (0x60)
+// #define PN532_COMMAND_TGINITASTARGET        (0x8C)
+// #define PN532_COMMAND_TGSETGENERALBYTES     (0x92)
+// #define PN532_COMMAND_TGGETDATA             (0x86)
+// #define PN532_COMMAND_TGSETDATA             (0x8E)
+// #define PN532_COMMAND_TGSETMETADATA         (0x94)
+// #define PN532_COMMAND_TGGETINITIATORCOMMAND (0x88)
+// #define PN532_COMMAND_TGRESPONSETOINITIATOR (0x90)
+// #define PN532_COMMAND_TGGETTARGETSTATUS     (0x8A)
 
-#define PN532_WAKEUP                        (0x55)
+// #define PN532_WAKEUP                        (0x55)
 
 #define PN532_SPI_STATUSREAD                (0x02)
 #define PN532_SPI_DATAWRITE                 (0x01)
 #define PN532_SPI_DATAREAD                  (0x03)
-#define PN532_SPI_READY                     (0x01)
+// #define PN532_SPI_READY                     (0x01)
 
-#define PN532_I2C_ADDRESS                   (0x48 >> 1)
-#define PN532_I2C_READY                     (0x01)
+// #define PN532_I2C_ADDRESS                   (0x48 >> 1)
+// #define PN532_I2C_READY                     (0x01)
 
-#define PN532_GPIO_P30                      (0x01)
-#define PN532_GPIO_P31                      (0x02)
-#define PN532_GPIO_P32                      (0x04)
-#define PN532_GPIO_P33                      (0x08)
-#define PN532_GPIO_P34                      (0x10)
-#define PN532_GPIO_P35                      (0x20)
-#define PN532_GPIO_VALIDATIONBIT            (0x80)
+// #define PN532_GPIO_P30                      (0x01)
+// #define PN532_GPIO_P31                      (0x02)
+// #define PN532_GPIO_P32                      (0x04)
+// #define PN532_GPIO_P33                      (0x08)
+// #define PN532_GPIO_P34                      (0x10)
+// #define PN532_GPIO_P35                      (0x20)
+// #define PN532_GPIO_VALIDATIONBIT            (0x80)
 
 #define CARD_TYPE_106KB_ISO14443A           (0x00) // card baudrate 106 kB
 #define CARD_TYPE_212KB_FELICA              (0x01) // card baudrate 212 kB
@@ -149,43 +149,43 @@ class PN532Trigger;
 #define CARD_TYPE_106KB_ISO14443B           (0x03) // card baudrate 106 kB
 #define CARD_TYPE_106KB_JEWEL               (0x04) // card baudrate 106 kB
 
-// Prefixes for NDEF Records (to identify record type), not used
-#define NDEF_URIPREFIX_NONE                 (0x00)
-#define NDEF_URIPREFIX_HTTP_WWWDOT          (0x01)
-#define NDEF_URIPREFIX_HTTPS_WWWDOT         (0x02)
-#define NDEF_URIPREFIX_HTTP                 (0x03)
-#define NDEF_URIPREFIX_HTTPS                (0x04)
-#define NDEF_URIPREFIX_TEL                  (0x05)
-#define NDEF_URIPREFIX_MAILTO               (0x06)
-#define NDEF_URIPREFIX_FTP_ANONAT           (0x07)
-#define NDEF_URIPREFIX_FTP_FTPDOT           (0x08)
-#define NDEF_URIPREFIX_FTPS                 (0x09)
-#define NDEF_URIPREFIX_SFTP                 (0x0A)
-#define NDEF_URIPREFIX_SMB                  (0x0B)
-#define NDEF_URIPREFIX_NFS                  (0x0C)
-#define NDEF_URIPREFIX_FTP                  (0x0D)
-#define NDEF_URIPREFIX_DAV                  (0x0E)
-#define NDEF_URIPREFIX_NEWS                 (0x0F)
-#define NDEF_URIPREFIX_TELNET               (0x10)
-#define NDEF_URIPREFIX_IMAP                 (0x11)
-#define NDEF_URIPREFIX_RTSP                 (0x12)
-#define NDEF_URIPREFIX_URN                  (0x13)
-#define NDEF_URIPREFIX_POP                  (0x14)
-#define NDEF_URIPREFIX_SIP                  (0x15)
-#define NDEF_URIPREFIX_SIPS                 (0x16)
-#define NDEF_URIPREFIX_TFTP                 (0x17)
-#define NDEF_URIPREFIX_BTSPP                (0x18)
-#define NDEF_URIPREFIX_BTL2CAP              (0x19)
-#define NDEF_URIPREFIX_BTGOEP               (0x1A)
-#define NDEF_URIPREFIX_TCPOBEX              (0x1B)
-#define NDEF_URIPREFIX_IRDAOBEX             (0x1C)
-#define NDEF_URIPREFIX_FILE                 (0x1D)
-#define NDEF_URIPREFIX_URN_EPC_ID           (0x1E)
-#define NDEF_URIPREFIX_URN_EPC_TAG          (0x1F)
-#define NDEF_URIPREFIX_URN_EPC_PAT          (0x20)
-#define NDEF_URIPREFIX_URN_EPC_RAW          (0x21)
-#define NDEF_URIPREFIX_URN_EPC              (0x22)
-#define NDEF_URIPREFIX_URN_NFC              (0x23)
+// // Prefixes for NDEF Records (to identify record type), not used
+// #define NDEF_URIPREFIX_NONE                 (0x00)
+// #define NDEF_URIPREFIX_HTTP_WWWDOT          (0x01)
+// #define NDEF_URIPREFIX_HTTPS_WWWDOT         (0x02)
+// #define NDEF_URIPREFIX_HTTP                 (0x03)
+// #define NDEF_URIPREFIX_HTTPS                (0x04)
+// #define NDEF_URIPREFIX_TEL                  (0x05)
+// #define NDEF_URIPREFIX_MAILTO               (0x06)
+// #define NDEF_URIPREFIX_FTP_ANONAT           (0x07)
+// #define NDEF_URIPREFIX_FTP_FTPDOT           (0x08)
+// #define NDEF_URIPREFIX_FTPS                 (0x09)
+// #define NDEF_URIPREFIX_SFTP                 (0x0A)
+// #define NDEF_URIPREFIX_SMB                  (0x0B)
+// #define NDEF_URIPREFIX_NFS                  (0x0C)
+// #define NDEF_URIPREFIX_FTP                  (0x0D)
+// #define NDEF_URIPREFIX_DAV                  (0x0E)
+// #define NDEF_URIPREFIX_NEWS                 (0x0F)
+// #define NDEF_URIPREFIX_TELNET               (0x10)
+// #define NDEF_URIPREFIX_IMAP                 (0x11)
+// #define NDEF_URIPREFIX_RTSP                 (0x12)
+// #define NDEF_URIPREFIX_URN                  (0x13)
+// #define NDEF_URIPREFIX_POP                  (0x14)
+// #define NDEF_URIPREFIX_SIP                  (0x15)
+// #define NDEF_URIPREFIX_SIPS                 (0x16)
+// #define NDEF_URIPREFIX_TFTP                 (0x17)
+// #define NDEF_URIPREFIX_BTSPP                (0x18)
+// #define NDEF_URIPREFIX_BTL2CAP              (0x19)
+// #define NDEF_URIPREFIX_BTGOEP               (0x1A)
+// #define NDEF_URIPREFIX_TCPOBEX              (0x1B)
+// #define NDEF_URIPREFIX_IRDAOBEX             (0x1C)
+// #define NDEF_URIPREFIX_FILE                 (0x1D)
+// #define NDEF_URIPREFIX_URN_EPC_ID           (0x1E)
+// #define NDEF_URIPREFIX_URN_EPC_TAG          (0x1F)
+// #define NDEF_URIPREFIX_URN_EPC_PAT          (0x20)
+// #define NDEF_URIPREFIX_URN_EPC_RAW          (0x21)
+// #define NDEF_URIPREFIX_URN_EPC              (0x22)
+// #define NDEF_URIPREFIX_URN_NFC              (0x23)
 
 // Status codes (errors) returned from Desfire card
 enum DESFireStatus
@@ -214,6 +214,7 @@ enum DESFireStatus
     ST_FileIntegrityError    = 0xF1,
 };
 
+/*
 // Card information about software and hardware version.
 struct DESFireCardVersion
 {
@@ -238,6 +239,7 @@ struct DESFireCardVersion
     byte cwProd;              // The production week (BCD)
     byte yearProd;            // The production year (BCD)
 };
+*/
 
 // MK = Application Master Key or PICC Master Key
 enum DESFireKeySettings
@@ -408,7 +410,7 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
   void set_key_version(const byte key_version);
 
     PN532();
-    bool GetCardVersion(DESFireCardVersion* pk_Version);
+//    bool GetCardVersion(DESFireCardVersion* pk_Version);
     bool FormatCard();
     bool EnableRandomIDForever();
     bool GetRealCardID(byte u8_UID[7]);
