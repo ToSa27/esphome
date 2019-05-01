@@ -12,6 +12,7 @@
 #ifndef DESFIRE_KEY_H
 #define DESFIRE_KEY_H
 
+#include <Arduino.h>
 #include "Buffer.h"
 
 enum DESFireCipher

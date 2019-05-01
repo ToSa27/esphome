@@ -281,7 +281,7 @@ byte PN532::ReadData(byte* buff, byte len)
     }
     while(false); // This is not a loop. Avoids using goto by using break.
 
-    ESP_LOGV(TAG, "Response: %s", BufToHexMsg(RxBuffer, len, Brace1, Brace2));
+    LogVerboseHex("Response: ", RxBuffer, len, Brace1, Brace2);
     
     if (Error)
     {
@@ -349,7 +349,7 @@ bool PN532::ReadPassiveTargetID(byte* u8_UidBuffer, byte* pu8_UidLength, eCardTy
     byte     u8_SAK   = mu8_PacketBuffer[6];
 
     
-    ESP_LOGD(TAG, "Card UID: %s", BufToHexMsg(u8_UidBuffer, u8_IdLength));
+    LogDebugHex("Card UID: ", u8_UidBuffer, u8_IdLength);
 
     // Examples:              ATQA    SAK  UID length
     // MIFARE Mini            00 04   09   4 bytes
@@ -770,8 +770,9 @@ bool PN532::ChangeKey(byte u8_KeyNo, DESFireKey* pi_NewKey, DESFireKey* pi_CurKe
         return false;
     }
 
-    ESP_LOGD(TAG, "SessKey IV: %s", BufToHexMsg(mpi_SessionKey->GetIV(), mpi_SessionKey->GetBlockSize()));
-    ESP_LOGD(TAG, "New Key: %s (%s)", BufToHexMsg(pi_NewKey->Data(), pi_NewKey->GetKeySize(16)), DESFireKey::GetKeyTypeAsString(pi_NewKey->GetKeyType(), pi_NewKey->GetKeySize()));
+    LogDebugHex("SessKey IV: ", mpi_SessionKey->GetIV(), mpi_SessionKey->GetBlockSize());
+    LogDebugHex("New Key: ", pi_NewKey->Data(), pi_NewKey->GetKeySize(16));
+    ESP_LOGD(TAG, "New Key Type: %s", DESFireKey::GetKeyTypeAsString(pi_NewKey->GetKeyType(), pi_NewKey->GetKeySize()));
 
     if (!DESFireKey::CheckValid(pi_NewKey)) {
         ESP_LOGE(TAG, "Invalid key");
@@ -797,7 +798,8 @@ bool PN532::ChangeKey(byte u8_KeyNo, DESFireKey* pi_NewKey, DESFireKey* pi_CurKe
             return false;
         }
 
-        ESP_LOGD(TAG, "Cur Key: %s (%s)", BufToHexMsg(pi_CurKey->Data(), pi_CurKey->GetKeySize(16)), DESFireKey::GetKeyTypeAsString(pi_CurKey->GetKeyType(), pi_CurKey->GetKeySize()));
+        LogDebugHex("Cur Key: %s", pi_CurKey->Data(), pi_CurKey->GetKeySize(16));
+        ESP_LOGD(TAG, "Cur Key Type: %s", DESFireKey::GetKeyTypeAsString(pi_CurKey->GetKeyType(), pi_CurKey->GetKeySize()));
 
         // The current key and the new key must be XORed        
         for (int B = 0; B < pi_CurKey->GetKeySize(16); B++)
@@ -842,8 +844,8 @@ bool PN532::ChangeKey(byte u8_KeyNo, DESFireKey* pi_NewKey, DESFireKey* pi_CurKe
     if (!mpi_SessionKey->CryptDataCBC(CBC_SEND, KEY_ENCIPHER, u8_Cryptogram_enc, i_Cryptogram, s32_CryptoLen))
         return false;
 
-    ESP_LOGD(TAG, "Cryptogram: %s", BufToHexMsg(i_Cryptogram, s32_CryptoLen));
-    ESP_LOGD(TAG, "Cryptog_enc: %s", BufToHexMsg(u8_Cryptogram_enc, s32_CryptoLen));
+    LogDebugHex("Cryptogram: ", i_Cryptogram, s32_CryptoLen);
+    LogDebugHex("Cryptog_enc: ", u8_Cryptogram_enc, s32_CryptoLen);
 
     TX_BUFFER(i_Params, 41);
     if (!i_Params.AppendUint8(u8_KeyNo)) {
@@ -1178,7 +1180,8 @@ void PN532Trigger::process(const uint8_t *uid, uint8_t uid_length) {
 
 bool PN532::Authenticate(byte u8_KeyNo, DESFireKey* pi_Key)
 {
-    ESP_LOGD(TAG, "Authenticate(KeyNo= %d, Key= %s)", u8_KeyNo, BufToHexMsg(pi_Key->Data(), pi_Key->GetKeySize(16)));
+    ESP_LOGD(TAG, "Authenticate KeyNo= %d", u8_KeyNo);
+    LogDebugHex("Authenticate Key= ", pi_Key->Data(), pi_Key->GetKeySize(16));
 
     byte u8_Command;
     switch (pi_Key->GetKeyType())
@@ -1236,12 +1239,12 @@ bool PN532::Authenticate(byte u8_KeyNo, DESFireKey* pi_Key)
     if (!pi_Key->CryptDataCBC(CBC_SEND, KEY_ENCIPHER, i_RndAB_enc, i_RndAB, 2*s32_RandomSize))
         return false;
 
-    ESP_LOGD(TAG, "RndB_enc: %s", BufToHexMsg(u8_RndB_enc, s32_RandomSize));
-    ESP_LOGD(TAG, "RndB: %s", BufToHexMsg(u8_RndB, s32_RandomSize));
-    ESP_LOGD(TAG, "RndB_rot: %s", BufToHexMsg(u8_RndB_rot, s32_RandomSize));
-    ESP_LOGD(TAG, "RndA: %s", BufToHexMsg(u8_RndA, s32_RandomSize));
-    ESP_LOGD(TAG, "RndAB: %s", BufToHexMsg(i_RndAB, 2 * s32_RandomSize));
-    ESP_LOGD(TAG, "RndAB_enc: %s", BufToHexMsg(i_RndAB_enc, 2 * s32_RandomSize));
+    LogDebugHex("RndB_enc: ", u8_RndB_enc, s32_RandomSize);
+    LogDebugHex("RndB: ", u8_RndB, s32_RandomSize);
+    LogDebugHex("RndB_rot: ", u8_RndB_rot, s32_RandomSize);
+    LogDebugHex("RndA: ", u8_RndA, s32_RandomSize);
+    LogDebugHex("RndAB: ", i_RndAB, 2 * s32_RandomSize);
+    LogDebugHex("RndAB_enc: ", i_RndAB_enc, 2 * s32_RandomSize);
 
     byte u8_RndA_enc[16]; // encrypted random A
     s32_Read = DataExchange(DF_INS_ADDITIONAL_FRAME, &i_RndAB_enc, u8_RndA_enc, s32_RandomSize, &e_Status, MAC_None);
@@ -1260,9 +1263,9 @@ bool PN532::Authenticate(byte u8_KeyNo, DESFireKey* pi_Key)
     u8_RndA_rot[s32_RandomSize - 1] = u8_RndA[0];
 
 
-    ESP_LOGD(TAG, "RndA_enc: %s", BufToHexMsg(u8_RndA_enc, s32_RandomSize));
-    ESP_LOGD(TAG, "RndA_dec: %s", BufToHexMsg(u8_RndA_dec, s32_RandomSize));
-    ESP_LOGD(TAG, "RndA_rot: %s", BufToHexMsg(u8_RndA_rot, s32_RandomSize));
+    LogDebugHex("RndA_enc: ", u8_RndA_enc, s32_RandomSize);
+    LogDebugHex("RndA_dec: ", u8_RndA_dec, s32_RandomSize);
+    LogDebugHex("RndA_rot: ", u8_RndA_rot, s32_RandomSize);
 
     // Last step: Check if the received random A is equal to the sent random A.
     if (memcmp(u8_RndA_dec, u8_RndA_rot, s32_RandomSize) != 0)
@@ -1309,7 +1312,7 @@ bool PN532::Authenticate(byte u8_KeyNo, DESFireKey* pi_Key)
         !mpi_SessionKey->GenerateCmacSubkeys())
         return false;
 
-    ESP_LOGD(TAG, "SessKey: %s", BufToHexMsg(mpi_SessionKey->Data(), mpi_SessionKey->GetKeySize(16)));
+    LogDebugHex("SessKey: ", mpi_SessionKey->Data(), mpi_SessionKey->GetKeySize(16));
 
     mu8_LastAuthKeyNo = u8_KeyNo;   
     return true;
@@ -1350,7 +1353,7 @@ bool PN532::GetRealCardID(byte u8_UID[7])
         return false;
     }
 
-    ESP_LOGD(TAG, "Real UID: %s", BufToHexMsg(u8_UID, 7));
+    LogDebugHex("Real UID: ", u8_UID, 7);
     return true;
 }
 
@@ -1475,7 +1478,7 @@ int PN532::DataExchange(TxBuffer* pi_Command,               // in (command + par
 
     if (e_Mac & MAC_Tcrypt) // CRC and encrypt pi_Params
     {
-        ESP_LOGD(TAG, "Sess Key IV: %s", BufToHexMsg(mpi_SessionKey->GetIV(), mpi_SessionKey->GetBlockSize()));
+        LogDebugHex("Sess Key IV: ", mpi_SessionKey->GetIV(), mpi_SessionKey->GetBlockSize());
     
         // The CRC is calculated over the command (which is not encrypted) and the parameters to be encrypted.
         uint32_t u32_Crc = CalcCrc32(pi_Command->GetData(), pi_Command->GetCount(), pi_Params->GetData(), pi_Params->GetCount());
@@ -1491,12 +1494,12 @@ int PN532::DataExchange(TxBuffer* pi_Command,               // in (command + par
         }
     
         ESP_LOGD(TAG, "CRC Params: 0x%08X", u32_Crc);
-        ESP_LOGD(TAG, "Params: %s", BufToHexMsg(pi_Params->GetData(), s32_CryptCount));
+        LogDebugHex("Params: ", pi_Params->GetData(), s32_CryptCount);
     
         if (!mpi_SessionKey->CryptDataCBC(CBC_SEND, KEY_ENCIPHER, pi_Params->GetData(), pi_Params->GetData(), s32_CryptCount))
             return -1;
     
-        ESP_LOGD(TAG, "Params_enc: %s", BufToHexMsg(pi_Params->GetData(), s32_CryptCount));
+        LogDebugHex("Params_enc: ", pi_Params->GetData(), s32_CryptCount);
     }
 
     byte u8_Command = pi_Command->GetData()[0];
@@ -1516,7 +1519,7 @@ int PN532::DataExchange(TxBuffer* pi_Command,               // in (command + par
         if (!mpi_SessionKey->CalculateCmac(mi_CmacBuffer, u8_CalcMac))
             return -1;
 
-        ESP_LOGV(TAG, "TX CMAC: %s", BufToHexMsg(u8_CalcMac, mpi_SessionKey->GetBlockSize()));
+        LogVerboseHex("TX CMAC: ", u8_CalcMac, mpi_SessionKey->GetBlockSize());
     }
 
 //    int P=0;
@@ -1614,7 +1617,7 @@ int PN532::DataExchange(TxBuffer* pi_Command,               // in (command + par
             if (!mpi_SessionKey->CalculateCmac(mi_CmacBuffer, u8_CalcMac))
                 return -1;
 
-            ESP_LOGV(TAG, "RX CMAC: %s", BufToHexMsg(u8_CalcMac, mpi_SessionKey->GetBlockSize()));
+            LogVerboseHex("RX CMAC: ", u8_CalcMac, mpi_SessionKey->GetBlockSize());
       
             // For AES the CMAC is 16 byte, but only 8 are transmitted
             if (memcmp(u8_RxMac, u8_CalcMac, 8) != 0)
@@ -1640,7 +1643,7 @@ int PN532::DataExchange(TxBuffer* pi_Command,               // in (command + par
             if (!mpi_SessionKey->CryptDataCBC(CBC_RECEIVE, KEY_DECIPHER, u8_RecvBuf, u8_RecvBuf, s32_Len))
                 return -1;
 
-            ESP_LOGV(TAG, "Decrypt: %s", BufToHexMsg(u8_RecvBuf, s32_Len));
+            LogVerboseHex("Decrypt: ", u8_RecvBuf, s32_Len);
         }    
     }
     return s32_Len;
@@ -1846,7 +1849,7 @@ bool PN532::EnableRandomIDForever()
     return (0 == DataExchange(&i_Command, &i_Params, NULL, 0, NULL, MAC_TcryptRmac));
 }
 
-char* PN532::BufToHexMsg(const byte* u8_Data, const uint32_t u32_DataLen, int s32_Brace1, int s32_Brace2)
+void PN532::LogHex(byte loglevel, const char* format, const byte* u8_Data, const uint32_t u32_DataLen, int s32_Brace1, int s32_Brace2)
 {
     const char* pszNibbleToHex = "0123456789ABCDEF";
     char msg[u32_DataLen * 3 + (s32_Brace1 >= 0 ? 1 : 0) + (s32_Brace2 >= 0 ? 1 : 0)];
@@ -1867,7 +1870,18 @@ char* PN532::BufToHexMsg(const byte* u8_Data, const uint32_t u32_DataLen, int s3
         msg[pos++] = pszNibbleToHex[u8_Data[i] & 0x0F];
     }
     msg[pos] = 0;
-    return msg;
+    if (loglevel == ESPHOME_LOG_LEVEL_DEBUG)
+        ESP_LOGD(TAG, "%s%s", format, msg);
+    else if (loglevel == ESPHOME_LOG_LEVEL_VERBOSE)
+        ESP_LOGV(TAG, "%s%s", format, msg);
+}
+
+void PN532::LogDebugHex(const char* format, const byte* u8_Data, const uint32_t u32_DataLen, int s32_Brace1, int s32_Brace2) {
+    LogHex(ESPHOME_LOG_LEVEL_DEBUG, format, u8_Data, u32_DataLen, s32_Brace1, s32_Brace2);
+}
+
+void PN532::LogVerboseHex(const char* format, const byte* u8_Data, const uint32_t u32_DataLen, int s32_Brace1, int s32_Brace2) {
+    LogHex(ESPHOME_LOG_LEVEL_VERBOSE, format, u8_Data, u32_DataLen, s32_Brace1, s32_Brace2);
 }
 
 // This CRC is used for ISO and AES authentication.

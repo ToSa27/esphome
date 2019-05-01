@@ -511,7 +511,10 @@ private:
     byte          mu8_CmacBuffer_Data[120]; 
     TxBuffer      mi_CmacBuffer;
 
-    char* BufToHexMsg(const byte* u8_Data, const uint32_t u32_DataLen, int s32_Brace1=-1, int s32_Brace2=-1);
+    void LogHex(byte loglevel, const char* msg, const byte* u8_Data, const uint32_t u32_DataLen, int s32_Brace1=-1, int s32_Brace2=-1);
+    void LogDebugHex(const char* msg, const byte* u8_Data, const uint32_t u32_DataLen, int s32_Brace1=-1, int s32_Brace2=-1);
+    void LogVerboseHex(const char* msg, const byte* u8_Data, const uint32_t u32_DataLen, int s32_Brace1=-1, int s32_Brace2=-1);
+
     uint32_t CalcCrc32(const byte* u8_Data1, int s32_Length1, const byte* u8_Data2=NULL, int s32_Length2=0);
     uint32_t CalcCrc32(const byte* u8_Data, int s32_Length, uint32_t u32_Crc);
 };
