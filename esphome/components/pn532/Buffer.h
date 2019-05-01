@@ -13,7 +13,7 @@
 #ifndef BUFFER_H
 #define BUFFER_H
 
-#include "Utils.h"
+//#include "Utils.h"
 
 // These macros create a new buffer on the stack avoiding the use of the 'new' operator.
 // ATTENTION: 
@@ -73,7 +73,7 @@ public:
     { 
         return mu8_Buf; 
     }
-
+/*
     // reads 1 byte from the buffer and increments the pointer
     uint8_t ReadUint8()
     {
@@ -94,7 +94,7 @@ public:
         ms32_Pos += 2;
         return u16_Data;
     }
-    
+*/    
     // reads 3 bytes from the buffer and increments the pointer
     uint32_t ReadUint24()
     {
@@ -127,12 +127,13 @@ public:
     }
 
 private:
+
     bool CheckPos(int s32_Count)
     {
         if (ms32_Pos + s32_Count <= ms32_Size)
             return true;
         
-        Utils::Print("### RxBuffer Overflow ###\r\n");
+//        Utils::Print("### RxBuffer Overflow ###\r\n");
         return false;
     }
    
@@ -259,7 +260,7 @@ private:
         if (ms32_Pos + s32_Count <= ms32_Size)
             return true;
         
-        Utils::Print("### TxBuffer Overflow ###\r\n");
+//        Utils::Print("### TxBuffer Overflow ###\r\n");
         return false;
     }
 

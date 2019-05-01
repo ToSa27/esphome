@@ -27,7 +27,7 @@
  */
 
 #include "DES.h"
-#include "Utils.h"
+//#include "Utils.h"
 
 #define c2l(c,l)  (l =((DES_LONG)(*((c)++)))    , \
        l|=((DES_LONG)(*((c)++)))<< 8L, \

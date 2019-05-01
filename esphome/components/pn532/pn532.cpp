@@ -192,7 +192,7 @@ byte PN532::ReadData(byte* buff, byte len)
     const byte MIN_PACK_LEN = 2 /*start bytes*/ + 2 /*length + length checksum */ + 1 /*checksum*/;
     if (len < MIN_PACK_LEN || len > PN532_PACKBUFFSIZE)
     {
-        Utils::Print("ReadData(): len is invalid\r\n");
+        ESP_LOGE(TAG, "ReadData(): len is invalid");
         return 0;
     }
     
@@ -281,16 +281,11 @@ byte PN532::ReadData(byte* buff, byte len)
     }
     while(false); // This is not a loop. Avoids using goto by using break.
 
-    // Always print the package, even if it was invalid.
-    if (mu8_DebugLevel > 1)
-    {
-        Utils::Print("Response: ");
-        Utils::PrintHexBuf(RxBuffer, len, LF, Brace1, Brace2);
-    }
+    ESP_LOGV(TAG, "Response: %s", BufToHexMsg(RxBuffer, len, Brace1, Brace2));
     
     if (Error)
     {
-        Utils::Print(Error);
+        ESP_LOGE(TAG, "%s", Error);
         return 0;
     }
 
@@ -299,7 +294,7 @@ byte PN532::ReadData(byte* buff, byte len)
 
 bool PN532::ReadPassiveTargetID(byte* u8_UidBuffer, byte* pu8_UidLength, eCardType* pe_CardType) 
 {
-    if (mu8_DebugLevel > 0) Utils::Print("\r\n*** ReadPassiveTargetID()\r\n");
+    ESP_LOGD(TAG, "ReadPassiveTargetID()");
       
     *pu8_UidLength = 0;
     *pe_CardType   = CARD_Unknown;
@@ -330,24 +325,19 @@ bool PN532::ReadPassiveTargetID(byte* u8_UidBuffer, byte* pu8_UidLength, eCardTy
     byte len = ReadData(mu8_PacketBuffer, 28);
     if (len < 3 || mu8_PacketBuffer[1] != PN532_COMMAND_INLISTPASSIVETARGET + 1)
     {
-        Utils::Print("ReadPassiveTargetID failed\r\n");
+        ESP_LOGE(TAG, "ReadPassiveTargetID failed");
         return false;
     }   
 
     byte cardsFound = mu8_PacketBuffer[2]; 
-    if (mu8_DebugLevel > 0)
-    {
-        Utils::Print("Cards found: "); 
-        Utils::PrintDec(cardsFound, LF); 
-    }
+    ESP_LOGD(TAG, "Cards found: %d", cardsFound); 
     if (cardsFound != 1)
         return true; // no card found -> this is not an error!
 
     byte u8_IdLength = mu8_PacketBuffer[7];
     if (u8_IdLength != 4 && u8_IdLength != 7)
     {
-        Utils::Print("Card has unsupported UID length: ");
-        Utils::PrintDec(u8_IdLength, LF); 
+        ESP_LOGW(TAG, "Card has unsupported UID length: %d", u8_IdLength); 
         return true; // unsupported card found -> this is not an error!
     }   
 
@@ -358,31 +348,28 @@ bool PN532::ReadPassiveTargetID(byte* u8_UidBuffer, byte* pu8_UidLength, eCardTy
     uint16_t u16_ATQA = ((uint16_t)mu8_PacketBuffer[4] << 8) | mu8_PacketBuffer[5];
     byte     u8_SAK   = mu8_PacketBuffer[6];
 
-    if (u8_IdLength == 7 && u8_UidBuffer[0] != 0x80 && u16_ATQA == 0x0344 && u8_SAK == 0x20) *pe_CardType = CARD_Desfire;
-    if (u8_IdLength == 4 && u8_UidBuffer[0] == 0x80 && u16_ATQA == 0x0304 && u8_SAK == 0x20) *pe_CardType = CARD_DesRandom;
     
-    if (mu8_DebugLevel > 0)
-    {
-        Utils::Print("Card UID:    ");
-        Utils::PrintHexBuf(u8_UidBuffer, u8_IdLength, LF);
+    ESP_LOGD(TAG, "Card UID: %s", BufToHexMsg(u8_UidBuffer, u8_IdLength));
 
-        // Examples:              ATQA    SAK  UID length
-        // MIFARE Mini            00 04   09   4 bytes
-        // MIFARE Mini            00 44   09   7 bytes
-        // MIFARE Classic 1k      00 04   08   4 bytes
-        // MIFARE Classic 4k      00 02   18   4 bytes
-        // MIFARE Ultralight      00 44   00   7 bytes
-        // MIFARE DESFire Default 03 44   20   7 bytes
-        // MIFARE DESFire Random  03 04   20   4 bytes
-        // See "Mifare Identification & Card Types.pdf"
-        char s8_Buf[80];
-        sprintf(s8_Buf, "Card Type:   ATQA= 0x%04X, SAK= 0x%02X", u16_ATQA, u8_SAK);
-
-        if (*pe_CardType == CARD_Desfire)   strcat(s8_Buf, " (Desfire Default)");
-        if (*pe_CardType == CARD_DesRandom) strcat(s8_Buf, " (Desfire RandomID)");
-            
-        Utils::Print(s8_Buf, LF);
+    // Examples:              ATQA    SAK  UID length
+    // MIFARE Mini            00 04   09   4 bytes
+    // MIFARE Mini            00 44   09   7 bytes
+    // MIFARE Classic 1k      00 04   08   4 bytes
+    // MIFARE Classic 4k      00 02   18   4 bytes
+    // MIFARE Ultralight      00 44   00   7 bytes
+    // MIFARE DESFire Default 03 44   20   7 bytes
+    // MIFARE DESFire Random  03 04   20   4 bytes
+    // See "Mifare Identification & Card Types.pdf"
+    ESP_LOGD(TAG, "Card Type: ATQA= 0x%04X, SAK= 0x%02X", u16_ATQA, u8_SAK);
+    if (u8_IdLength == 7 && u8_UidBuffer[0] != 0x80 && u16_ATQA == 0x0344 && u8_SAK == 0x20) {
+        *pe_CardType = CARD_Desfire;
+        ESP_LOGD(TAG, "Card Type: Desfire Default");
     }
+    else if (u8_IdLength == 4 && u8_UidBuffer[0] == 0x80 && u16_ATQA == 0x0304 && u8_SAK == 0x20) {
+        *pe_CardType = CARD_DesRandom;
+        ESP_LOGD(TAG, "Card Type: Desfire RandomID");
+    }
+
     return true;
 }
 
@@ -519,23 +506,24 @@ bool PN532::CheckDesfireSecret(uint8_t* user_id)
 
 bool PN532::CreateApplication(uint32_t u32_AppID, DESFireKeySettings e_Settg, byte u8_KeyCount, DESFireKeyType e_KeyType)
 {
-    if (mu8_DebugLevel > 0)
-    {
-        char s8_Buf[80];
-        sprintf(s8_Buf, "\r\n*** CreateApplication(App= 0x%06X, KeyCount= %d, Type= %s)\r\n", (unsigned int)u32_AppID, u8_KeyCount, DESFireKey::GetKeyTypeAsString(e_KeyType));
-        Utils::Print(s8_Buf);
-    }
+    ESP_LOGD(TAG, "CreateApplication(App= 0x%06X, KeyCount= %d, Type= %s)", (unsigned int)u32_AppID, u8_KeyCount, DESFireKey::GetKeyTypeAsString(e_KeyType));
 
     if (e_KeyType == DF_KEY_INVALID)
     {
-        Utils::Print("Invalid key type\r\n");
+        ESP_LOGE("Invalid key type");
         return false;
     }
 
     TX_BUFFER(i_Params, 5);
-    i_Params.AppendUint24(u32_AppID);
-    i_Params.AppendUint8 (e_Settg);
-    i_Params.AppendUint8 (u8_KeyCount | e_KeyType);
+    if (!i_Params.AppendUint24(u32_AppID)) {
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
+    if (!i_Params.AppendUint8 (e_Settg)) {
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
+    if (!i_Params.AppendUint8 (u8_KeyCount | e_KeyType)) {
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
 
     return (0 == DataExchange(DF_INS_CREATE_APPLICATION, &i_Params, NULL, 0, NULL, MAC_TmacRmac));
 }
@@ -561,22 +549,19 @@ bool PN532::DeleteApplicationIfExists(uint32_t u32_AppID)
 
 bool PN532::DeleteApplication(uint32_t u32_AppID)
 {
-    if (mu8_DebugLevel > 0)
-    {
-        char s8_Buf[80];
-        sprintf(s8_Buf, "\r\n*** DeleteApplication(0x%06X)\r\n", (unsigned int)u32_AppID);
-        Utils::Print(s8_Buf);
-    }
+    ESP_LOGD(TAG, "DeleteApplication(0x%06X)", (unsigned int)u32_AppID);
 
     TX_BUFFER(i_Params, 3);
-    i_Params.AppendUint24(u32_AppID);   
+    if (!i_Params.AppendUint24(u32_AppID)) {
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
 
     return (0 == DataExchange(DF_INS_DELETE_APPLICATION, &i_Params, NULL, 0, NULL, MAC_TmacRmac));
 }
 
 bool PN532::GetApplicationIDs(uint32_t u32_IDlist[28], byte* pu8_AppCount)
 {
-    if (mu8_DebugLevel > 0) Utils::Print("\r\n*** GetApplicationIDs()\r\n");
+    ESP_LOGD(TAG, "GetApplicationIDs()");
 
     memset(u32_IDlist, 0, 28 * sizeof(uint32_t));
 
@@ -598,7 +583,9 @@ bool PN532::GetApplicationIDs(uint32_t u32_IDlist[28], byte* pu8_AppCount)
             return false;
     }
 
-    i_RxBuf.SetSize (s32_Read1 + s32_Read2);
+    if (!i_RxBuf.SetSize (s32_Read1 + s32_Read2)) {
+        ESP_LOGE(TAG, "Buffer Overflow");
+    };
     *pu8_AppCount = (s32_Read1 + s32_Read2) / 3;
 
     // Convert 3 byte array -> 4 byte array
@@ -607,19 +594,10 @@ bool PN532::GetApplicationIDs(uint32_t u32_IDlist[28], byte* pu8_AppCount)
         u32_IDlist[i] = i_RxBuf.ReadUint24();
     }
 
-    if (mu8_DebugLevel > 0)
-    {
-        if (*pu8_AppCount == 0)
-        {
-            Utils::Print("No Application ID's.\r\n");
-        }
-        else for (byte i=0; i<*pu8_AppCount; i++)
-        {
-            char s8_Buf[80];
-            sprintf(s8_Buf, "Application %2d: 0x%06X\r\n", i, (unsigned int)u32_IDlist[i]);
-            Utils::Print(s8_Buf);
-        }
-    }
+    if (*pu8_AppCount == 0)
+        ESP_LOGD(TAG, "No Application ID's.");
+    else for (byte i=0; i<*pu8_AppCount; i++)
+        ESP_LOGD(TAG, "Application %2d: 0x%06X", i, (unsigned int)u32_IDlist[i]);
     return true;
 }
 
@@ -711,12 +689,7 @@ bool PN532::StoreDesfireSecret(uint8_t* user_id)
 
 bool PN532::WriteFileData(byte u8_FileID, int s32_Offset, int s32_Length, const byte* u8_DataBuffer)
 {
-    if (mu8_DebugLevel > 0)
-    {
-        char s8_Buf[80];
-        sprintf(s8_Buf, "\r\n*** WriteFileData(ID= %d, Offset= %d, Length= %d)\r\n", u8_FileID, s32_Offset, s32_Length);
-        Utils::Print(s8_Buf);
-    }
+    ESP_LOGD(TAG, "WriteFileData(ID= %d, Offset= %d, Length= %d)", u8_FileID, s32_Offset, s32_Length);
 
     // With intention this command does not use DF_INS_ADDITIONAL_FRAME because the CMAC must be calculated over all frames sent.
     // When writing a lot of data this could lead to a buffer overflow in mi_CmacBuffer.
@@ -725,10 +698,18 @@ bool PN532::WriteFileData(byte u8_FileID, int s32_Offset, int s32_Length, const 
         int s32_Count = min(s32_Length, MAX_FRAME_SIZE - 8); // DF_INS_WRITE_DATA + u8_FileID + s32_Offset + s32_Count = 8 bytes
               
         TX_BUFFER(i_Params, MAX_FRAME_SIZE); 
-        i_Params.AppendUint8 (u8_FileID);
-        i_Params.AppendUint24(s32_Offset); // only the low 3 bytes are used
-        i_Params.AppendUint24(s32_Count);  // only the low 3 bytes are used
-        i_Params.AppendBuf(u8_DataBuffer, s32_Count);
+        if (!i_Params.AppendUint8 (u8_FileID)) {
+            ESP_LOGE(TAG, "Buffer Overflow");
+        }
+        if (!i_Params.AppendUint24(s32_Offset)) { // only the low 3 bytes are used
+            ESP_LOGE(TAG, "Buffer Overflow");
+        }
+        if (!i_Params.AppendUint24(s32_Count)) { // only the low 3 bytes are used
+            ESP_LOGE(TAG, "Buffer Overflow");
+        }
+        if (!i_Params.AppendBuf(u8_DataBuffer, s32_Count)) {
+            ESP_LOGE(TAG, "Buffer Overflow");
+        }
 
         DESFireStatus e_Status;
         int s32_Read = DataExchange(DF_INS_WRITE_DATA, &i_Params, NULL, 0, &e_Status, MAC_TmacRmac);
@@ -744,20 +725,23 @@ bool PN532::WriteFileData(byte u8_FileID, int s32_Offset, int s32_Length, const 
 
 bool PN532::CreateStdDataFile(byte u8_FileID, DESFireFilePermissions* pk_Permis, int s32_FileSize)
 {
-    if (mu8_DebugLevel > 0)
-    {
-        char s8_Buf[80];
-        sprintf(s8_Buf, "\r\n*** CreateStdDataFile(ID= %d, Size= %d)\r\n", u8_FileID, s32_FileSize);
-        Utils::Print(s8_Buf);
-    }
+    ESP_LOGD(TAG, "CreateStdDataFile(ID= %d, Size= %d)", u8_FileID, s32_FileSize);
 
     uint16_t u16_Permis = pk_Permis->Pack();
   
     TX_BUFFER(i_Params, 7);
-    i_Params.AppendUint8 (u8_FileID);
-    i_Params.AppendUint8 (CM_PLAIN);
-    i_Params.AppendUint16(u16_Permis);
-    i_Params.AppendUint24(s32_FileSize); // only the low 3 bytes are used
+    if (!i_Params.AppendUint8 (u8_FileID)) {
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
+    if (!i_Params.AppendUint8 (CM_PLAIN)) {
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
+    if (!i_Params.AppendUint16(u16_Permis)) {
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
+    if (!i_Params.AppendUint24(s32_FileSize)) { // only the low 3 bytes are used
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
 
     return (0 == DataExchange(DF_INS_CREATE_STD_DATA_FILE, &i_Params, NULL, 0, NULL, MAC_TmacRmac));
 
@@ -765,15 +749,12 @@ bool PN532::CreateStdDataFile(byte u8_FileID, DESFireFilePermissions* pk_Permis,
 
 bool PN532::ChangeKeySettings(DESFireKeySettings e_NewSettg)
 {
-    if (mu8_DebugLevel > 0)
-    {
-        char s8_Buf[80];
-        sprintf(s8_Buf, "\r\n*** ChangeKeySettings(0x%02X)\r\n", e_NewSettg);
-        Utils::Print(s8_Buf);
-    }
+    ESP_LOGD(TAG, "ChangeKeySettings(0x%02X)", e_NewSettg);
 
     TX_BUFFER(i_Params, 16);
-    i_Params.AppendUint8(e_NewSettg);
+    if (!i_Params.AppendUint8(e_NewSettg)) {
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
 
     // The TX CMAC must not be calculated here because a CBC encryption operation has already been executed
     return (0 == DataExchange(DF_INS_CHANGE_KEY_SETTINGS, &i_Params, NULL, 0, NULL, MAC_TcryptRmac));
@@ -781,29 +762,21 @@ bool PN532::ChangeKeySettings(DESFireKeySettings e_NewSettg)
 
 bool PN532::ChangeKey(byte u8_KeyNo, DESFireKey* pi_NewKey, DESFireKey* pi_CurKey)
 {
-    if (mu8_DebugLevel > 0)
-    {
-        char s8_Buf[80];
-        sprintf(s8_Buf, "\r\n*** ChangeKey(KeyNo= %d)\r\n", u8_KeyNo);
-        Utils::Print(s8_Buf);
-    }
+    ESP_LOGD(TAG, "ChangeKey(KeyNo= %d)", u8_KeyNo);
 
     if (mu8_LastAuthKeyNo == NOT_AUTHENTICATED)
     {
-        Utils::Print("Not authenticated\r\n");
+        ESP_LOGE(TAG, "Not authenticated");
         return false;
     }
 
-    if (mu8_DebugLevel > 0)
-    {
-        Utils::Print("* SessKey IV:  ");
-        mpi_SessionKey->PrintIV(LF);
-        Utils::Print("* New Key:     ");
-        pi_NewKey->PrintKey(LF);
-    }    
+    ESP_LOGD(TAG, "SessKey IV: %s", BufToHexMsg(mpi_SessionKey->GetIV(), mpi_SessionKey->GetBlockSize()));
+    ESP_LOGD(TAG, "New Key: %s (%s)", BufToHexMsg(pi_NewKey->Data(), pi_NewKey->GetKeySize(16)), DESFireKey::GetKeyTypeAsString(pi_NewKey->GetKeyType(), pi_NewKey->GetKeySize()));
 
-    if (!DESFireKey::CheckValid(pi_NewKey))
+    if (!DESFireKey::CheckValid(pi_NewKey)) {
+        ESP_LOGE(TAG, "Invalid key");
         return false;
+    }
 
     TX_BUFFER(i_Cryptogram, 40);
     i_Cryptogram.AppendBuf(pi_NewKey->Data(), pi_NewKey->GetKeySize(16));
@@ -819,45 +792,42 @@ bool PN532::ChangeKey(byte u8_KeyNo, DESFireKey* pi_NewKey, DESFireKey* pi_CurKe
     // For the PICC master key b_SameKey is always true because there is only ONE key (#0) at the PICC level.
     if (!b_SameKey) 
     {
-        if (!DESFireKey::CheckValid(pi_CurKey))
+        if (!DESFireKey::CheckValid(pi_CurKey)) {
+            ESP_LOGE(TAG, "Invalid key");
             return false;
+        }
 
-        if (mu8_DebugLevel > 0)
-        {
-            Utils::Print("* Cur Key:     ");
-            pi_CurKey->PrintKey(LF);
-        }        
+        ESP_LOGD(TAG, "Cur Key: %s (%s)", BufToHexMsg(pi_CurKey->Data(), pi_CurKey->GetKeySize(16)), DESFireKey::GetKeyTypeAsString(pi_CurKey->GetKeyType(), pi_CurKey->GetKeySize()));
 
         // The current key and the new key must be XORed        
-        Utils::XorDataBlock(i_Cryptogram, pi_CurKey->Data(), pi_CurKey->GetKeySize(16));
+        for (int B = 0; B < pi_CurKey->GetKeySize(16); B++)
+            i_Cryptogram[B] ^= pi_CurKey->Data()[B];
     }
 
     // While DES stores the key version in bit 0 of the key bytes, AES transmits the version separately
     if (pi_NewKey->GetKeyType() == DF_KEY_AES)
     {
-        i_Cryptogram.AppendUint8(pi_NewKey->GetKeyVersion());
+        if (!i_Cryptogram.AppendUint8(pi_NewKey->GetKeyVersion())) {
+            ESP_LOGE(TAG, "Buffer Overflow");
+        }
     }
 
     byte u8_Command[] = { DF_INS_CHANGE_KEY, u8_KeyNo };   
-    uint32_t u32_Crc = Utils::CalcCrc32(u8_Command, 2, i_Cryptogram, i_Cryptogram.GetCount());
-    i_Cryptogram.AppendUint32(u32_Crc);
-
-    if (mu8_DebugLevel > 0)
-    {
-        Utils::Print("* CRC Crypto:  0x");
-        Utils::PrintHex32(u32_Crc, LF);
+    uint32_t u32_Crc = CalcCrc32(u8_Command, 2, i_Cryptogram, i_Cryptogram.GetCount());
+    if (!i_Cryptogram.AppendUint32(u32_Crc)) {
+        ESP_LOGE(TAG, "Buffer Overflow");
     }
+
+    ESP_LOGD(TAG, "CRC Crypto: 0x", u32_Crc);
 
     if (!b_SameKey)
     {
-        uint32_t u32_CrcNew = Utils::CalcCrc32(pi_NewKey->Data(), pi_NewKey->GetKeySize(16));
-        i_Cryptogram.AppendUint32(u32_CrcNew);        
-
-        if (mu8_DebugLevel > 0)
-        {
-            Utils::Print("* CRC New Key: 0x");
-            Utils::PrintHex32(u32_CrcNew, LF);
+        uint32_t u32_CrcNew = CalcCrc32(pi_NewKey->Data(), pi_NewKey->GetKeySize(16));
+        if (!i_Cryptogram.AppendUint32(u32_CrcNew)) {
+            ESP_LOGE(TAG, "Buffer Overflow");
         }
+
+    	ESP_LOGD(TAG, "CRC New Key: 0x", u32_CrcNew);
     }
 
     // Get the padded length of the Cryptogram to be encrypted
@@ -872,17 +842,16 @@ bool PN532::ChangeKey(byte u8_KeyNo, DESFireKey* pi_NewKey, DESFireKey* pi_CurKe
     if (!mpi_SessionKey->CryptDataCBC(CBC_SEND, KEY_ENCIPHER, u8_Cryptogram_enc, i_Cryptogram, s32_CryptoLen))
         return false;
 
-    if (mu8_DebugLevel > 0)
-    {
-        Utils::Print("* Cryptogram:  ");
-        Utils::PrintHexBuf(i_Cryptogram, s32_CryptoLen, LF);
-        Utils::Print("* Cryptog_enc: ");
-        Utils::PrintHexBuf(u8_Cryptogram_enc, s32_CryptoLen, LF);
-    }
+    ESP_LOGD(TAG, "Cryptogram: %s", BufToHexMsg(i_Cryptogram, s32_CryptoLen));
+    ESP_LOGD(TAG, "Cryptog_enc: %s", BufToHexMsg(u8_Cryptogram_enc, s32_CryptoLen));
 
     TX_BUFFER(i_Params, 41);
-    i_Params.AppendUint8(u8_KeyNo);
-    i_Params.AppendBuf  (u8_Cryptogram_enc, s32_CryptoLen);
+    if (!i_Params.AppendUint8(u8_KeyNo)) {
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
+    if (!i_Params.AppendBuf  (u8_Cryptogram_enc, s32_CryptoLen)) {
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
 
     // If the same key has been changed the session key is no longer valid. (Authentication required)
     if (b_SameKey) mu8_LastAuthKeyNo = NOT_AUTHENTICATED;
@@ -1209,14 +1178,7 @@ void PN532Trigger::process(const uint8_t *uid, uint8_t uid_length) {
 
 bool PN532::Authenticate(byte u8_KeyNo, DESFireKey* pi_Key)
 {
-    if (mu8_DebugLevel > 0)
-    {
-        char s8_Buf[80];
-        sprintf(s8_Buf, "\r\n*** Authenticate(KeyNo= %d, Key= ", u8_KeyNo);
-        Utils::Print(s8_Buf);
-        pi_Key->PrintKey();
-        Utils::Print(")\r\n");
-    }
+    ESP_LOGD(TAG, "Authenticate(KeyNo= %d, Key= %s)", u8_KeyNo, BufToHexMsg(pi_Key->Data(), pi_Key->GetKeySize(16)));
 
     byte u8_Command;
     switch (pi_Key->GetKeyType())
@@ -1225,12 +1187,14 @@ bool PN532::Authenticate(byte u8_KeyNo, DESFireKey* pi_Key)
         case DF_KEY_2K3DES:
         case DF_KEY_3K3DES: u8_Command = DFEV1_INS_AUTHENTICATE_ISO; break;
         default:
-            Utils::Print("Invalid key\r\n");
+            ESP_LOGE(TAG, "Invalid key");
             return false;
     }
 
     TX_BUFFER(i_Params, 1);
-    i_Params.AppendUint8(u8_KeyNo);
+    if (!i_Params.AppendUint8(u8_KeyNo)) {
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
 
     // Request a random of 16 byte, but depending of the key the PICC may also return an 8 byte random
     DESFireStatus e_Status;
@@ -1238,7 +1202,7 @@ bool PN532::Authenticate(byte u8_KeyNo, DESFireKey* pi_Key)
     int s32_Read = DataExchange(u8_Command, &i_Params, u8_RndB_enc, 16, &e_Status, MAC_None);
     if (e_Status != ST_MoreFrames || (s32_Read != 8 && s32_Read != 16))
     {
-        Utils::Print("Authentication failed (1)\r\n");
+        ESP_LOGE(TAG, "Authentication failed (1)");
         return false;
     }
 
@@ -1250,10 +1214,18 @@ bool PN532::Authenticate(byte u8_KeyNo, DESFireKey* pi_Key)
         return false;  // key not set
 
     byte u8_RndB_rot[16]; // rotated random B
-    Utils::RotateBlockLeft(u8_RndB_rot, u8_RndB, s32_RandomSize);
+    memcpy(u8_RndB_rot, u8_RndB + 1, s32_RandomSize - 1);
+    u8_RndB_rot[s32_RandomSize - 1] = u8_RndB[0];
 
     byte u8_RndA[16];
-    Utils::GenerateRandom(u8_RndA, s32_RandomSize);
+    // GenerateRandom
+    uint32_t u32_Now = millis();
+    for (int i=0; i<s32_RandomSize; i++)
+    {
+        u8_RndA[i] = (byte)u32_Now;
+        u32_Now *= 127773;
+        u32_Now += 16807;
+    }
 
     TX_BUFFER(i_RndAB, 32); // (randomA + rotated randomB)
     i_RndAB.AppendBuf(u8_RndA,     s32_RandomSize);
@@ -1264,27 +1236,18 @@ bool PN532::Authenticate(byte u8_KeyNo, DESFireKey* pi_Key)
     if (!pi_Key->CryptDataCBC(CBC_SEND, KEY_ENCIPHER, i_RndAB_enc, i_RndAB, 2*s32_RandomSize))
         return false;
 
-    if (mu8_DebugLevel > 0)
-    {
-        Utils::Print("* RndB_enc:  ");
-        Utils::PrintHexBuf(u8_RndB_enc,  s32_RandomSize, LF);
-        Utils::Print("* RndB:      ");
-        Utils::PrintHexBuf(u8_RndB,      s32_RandomSize, LF);
-        Utils::Print("* RndB_rot:  ");
-        Utils::PrintHexBuf(u8_RndB_rot,  s32_RandomSize, LF);
-        Utils::Print("* RndA:      ");
-        Utils::PrintHexBuf(u8_RndA,      s32_RandomSize, LF);
-        Utils::Print("* RndAB:     ");
-        Utils::PrintHexBuf(i_RndAB,      2*s32_RandomSize, LF);
-        Utils::Print("* RndAB_enc: ");
-        Utils::PrintHexBuf(i_RndAB_enc,  2*s32_RandomSize, LF);
-    }
+    ESP_LOGD(TAG, "RndB_enc: %s", BufToHexMsg(u8_RndB_enc, s32_RandomSize));
+    ESP_LOGD(TAG, "RndB: %s", BufToHexMsg(u8_RndB, s32_RandomSize));
+    ESP_LOGD(TAG, "RndB_rot: %s", BufToHexMsg(u8_RndB_rot, s32_RandomSize));
+    ESP_LOGD(TAG, "RndA: %s", BufToHexMsg(u8_RndA, s32_RandomSize));
+    ESP_LOGD(TAG, "RndAB: %s", BufToHexMsg(i_RndAB, 2 * s32_RandomSize));
+    ESP_LOGD(TAG, "RndAB_enc: %s", BufToHexMsg(i_RndAB_enc, 2 * s32_RandomSize));
 
     byte u8_RndA_enc[16]; // encrypted random A
     s32_Read = DataExchange(DF_INS_ADDITIONAL_FRAME, &i_RndAB_enc, u8_RndA_enc, s32_RandomSize, &e_Status, MAC_None);
     if (e_Status != ST_Success || s32_Read != s32_RandomSize)
     {
-        Utils::Print("Authentication failed (2)\r\n");
+        ESP_LOGE(TAG, "Authentication failed (2)");
         return false;
     }
 
@@ -1293,22 +1256,18 @@ bool PN532::Authenticate(byte u8_KeyNo, DESFireKey* pi_Key)
         return false;
 
     byte u8_RndA_rot[16]; // rotated random A
-    Utils::RotateBlockLeft(u8_RndA_rot, u8_RndA, s32_RandomSize);   
+    memcpy(u8_RndA_rot, u8_RndA + 1, s32_RandomSize - 1);
+    u8_RndA_rot[s32_RandomSize - 1] = u8_RndA[0];
 
-    if (mu8_DebugLevel > 0)
-    {
-        Utils::Print("* RndA_enc:  ");
-        Utils::PrintHexBuf(u8_RndA_enc, s32_RandomSize, LF);
-        Utils::Print("* RndA_dec:  ");
-        Utils::PrintHexBuf(u8_RndA_dec, s32_RandomSize, LF);
-        Utils::Print("* RndA_rot:  ");
-        Utils::PrintHexBuf(u8_RndA_rot, s32_RandomSize, LF);
-    }
+
+    ESP_LOGD(TAG, "RndA_enc: %s", BufToHexMsg(u8_RndA_enc, s32_RandomSize));
+    ESP_LOGD(TAG, "RndA_dec: %s", BufToHexMsg(u8_RndA_dec, s32_RandomSize));
+    ESP_LOGD(TAG, "RndA_rot: %s", BufToHexMsg(u8_RndA_rot, s32_RandomSize));
 
     // Last step: Check if the received random A is equal to the sent random A.
     if (memcmp(u8_RndA_dec, u8_RndA_rot, s32_RandomSize) != 0)
     {
-        Utils::Print("Authentication failed (3)\r\n");
+        ESP_LOGE(TAG, "Authentication failed (3)");
         return false;
     }
 
@@ -1350,11 +1309,7 @@ bool PN532::Authenticate(byte u8_KeyNo, DESFireKey* pi_Key)
         !mpi_SessionKey->GenerateCmacSubkeys())
         return false;
 
-    if (mu8_DebugLevel > 0)
-    {
-        Utils::Print("* SessKey:   ");
-        mpi_SessionKey->PrintKey(LF);
-    }
+    ESP_LOGD(TAG, "SessKey: %s", BufToHexMsg(mpi_SessionKey->Data(), mpi_SessionKey->GetKeySize(16)));
 
     mu8_LastAuthKeyNo = u8_KeyNo;   
     return true;
@@ -1362,11 +1317,11 @@ bool PN532::Authenticate(byte u8_KeyNo, DESFireKey* pi_Key)
 
 bool PN532::GetRealCardID(byte u8_UID[7])
 {
-    if (mu8_DebugLevel > 0) Utils::Print("\r\n*** GetRealCardID()\r\n");
+    ESP_LOGD(TAG, "GetRealCardID()");
 
     if (mu8_LastAuthKeyNo == NOT_AUTHENTICATED)
     {
-        Utils::Print("Not authenticated\r\n");
+        ESP_LOGE(TAG, "Not authenticated");
         return false;
     }
 
@@ -1376,46 +1331,37 @@ bool PN532::GetRealCardID(byte u8_UID[7])
 
     // The card returns UID[7] + CRC32[4] encrypted with the session key
     // Copy the 7 bytes of the UID to the output buffer
-    i_Data.ReadBuf(u8_UID, 7);
+    if (!i_Data.ReadBuf(u8_UID, 7)) {
+        ESP_LOGE("Buffer Overflow");
+    }
 
     // Get the CRC sent by the card
     uint32_t u32_Crc1 = i_Data.ReadUint32();
 
     // The CRC must be calculated over the UID + the status byte appended
     byte u8_Status = ST_Success;
-    uint32_t u32_Crc2 = Utils::CalcCrc32(u8_UID, 7, &u8_Status, 1);
+    uint32_t u32_Crc2 = CalcCrc32(u8_UID, 7, &u8_Status, 1);
 
-    if (mu8_DebugLevel > 1)
-    {
-        Utils::Print("* CRC:       0x");
-        Utils::PrintHex32(u32_Crc2, LF);
-    }
+    ESP_LOGV(TAG, "CRC: 0x%08X", u32_Crc2);
 
     if (u32_Crc1 != u32_Crc2)
     {
-        Utils::Print("Invalid CRC\r\n");
+        ESP_LOGE(TAG, "Invalid CRC");
         return false;
     }
 
-    if (mu8_DebugLevel > 0)
-    {
-        Utils::Print("Real UID: ");
-        Utils::PrintHexBuf(u8_UID, 7, LF);
-    }
+    ESP_LOGD(TAG, "Real UID: %s", BufToHexMsg(u8_UID, 7));
     return true;
 }
 
 bool PN532::SelectApplication(uint32_t u32_AppID)
 {
-    if (mu8_DebugLevel > 0)
-    {
-        char s8_Buf[80];
-        sprintf(s8_Buf, "\r\n*** SelectApplication(0x%06X)\r\n", (unsigned int)u32_AppID);
-        Utils::Print(s8_Buf);
-    }
+    ESP_LOGD(TAG, "SelectApplication(0x%06X)", (unsigned int)u32_AppID);
 
     TX_BUFFER(i_Params, 3);
-    i_Params.AppendUint24(u32_AppID);
+    if (!i_Params.AppendUint24(u32_AppID)) {
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
 
     // This command does not return a CMAC because after selecting another application the session key is no longer valid. (Authentication required)
     if (0 != DataExchange(DF_INS_SELECT_APPLICATION, &i_Params, NULL, 0, NULL, MAC_None))
@@ -1428,35 +1374,23 @@ bool PN532::SelectApplication(uint32_t u32_AppID)
 
 bool PN532::GetKeyVersion(byte u8_KeyNo, byte* pu8_Version)
 {
-    char s8_Buf[80];
-    if (mu8_DebugLevel > 0)
-    {
-        sprintf(s8_Buf, "\r\n*** GetKeyVersion(KeyNo= %d)\r\n", u8_KeyNo);
-        Utils::Print(s8_Buf);
-    }
+    ESP_LOGD(TAG, "GetKeyVersion(KeyNo= %d)", u8_KeyNo);
 
     TX_BUFFER(i_Params, 1);
-    i_Params.AppendUint8(u8_KeyNo);
+    if (!i_Params.AppendUint8(u8_KeyNo)) {
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
 
     if (1 != DataExchange(DF_INS_GET_KEY_VERSION, &i_Params, pu8_Version, 1, NULL, MAC_TmacRmac))
         return false;
 
-    if (mu8_DebugLevel > 0)
-    {
-        Utils::Print("Version: 0x");
-        Utils::PrintHex8(*pu8_Version, LF);
-    }
+    ESP_LOGD(TAG, "Version: 0x%02X", *pu8_Version);
     return true;
 }
 
 bool PN532::ReadFileData(byte u8_FileID, int s32_Offset, int s32_Length, byte* u8_DataBuffer)
 {
-    if (mu8_DebugLevel > 0)
-    {
-        char s8_Buf[80];
-        sprintf(s8_Buf, "\r\n*** ReadFileData(ID= %d, Offset= %d, Length= %d)\r\n", u8_FileID, s32_Offset, s32_Length);
-        Utils::Print(s8_Buf);
-    }
+    ESP_LOGD(TAG, "ReadFileData(ID= %d, Offset= %d, Length= %d)", u8_FileID, s32_Offset, s32_Length);
 
     // With intention this command does not use DF_INS_ADDITIONAL_FRAME because the CMAC must be calculated over all frames received.
     // When reading a lot of data this could lead to a buffer overflow in mi_CmacBuffer.
@@ -1465,9 +1399,15 @@ bool PN532::ReadFileData(byte u8_FileID, int s32_Offset, int s32_Length, byte* u
         int s32_Count = min(s32_Length, 48); // the maximum that can be transferred in one frame (must be a multiple of 16 if encryption is used)
 
         TX_BUFFER(i_Params, 7);
-        i_Params.AppendUint8 (u8_FileID);
-        i_Params.AppendUint24(s32_Offset); // only the low 3 bytes are used
-        i_Params.AppendUint24(s32_Count);  // only the low 3 bytes are used
+        if (!i_Params.AppendUint8 (u8_FileID)) {
+            ESP_LOGE(TAG, "Buffer Overflow");
+        }
+        if (!i_Params.AppendUint24(s32_Offset)) { // only the low 3 bytes are used
+            ESP_LOGE(TAG, "Buffer Overflow");
+        }
+        if (!i_Params.AppendUint24(s32_Count)) { // only the low 3 bytes are used
+            ESP_LOGE(TAG, "Buffer Overflow");
+        }
         
         DESFireStatus e_Status;
         int s32_Read = DataExchange(DF_INS_READ_DATA, &i_Params, u8_DataBuffer, s32_Count, &e_Status, MAC_TmacRmac);
@@ -1489,7 +1429,9 @@ byte PN532::GetLastPN532Error()
 int PN532::DataExchange(byte u8_Command, TxBuffer* pi_Params, byte* u8_RecvBuf, int s32_RecvSize, DESFireStatus* pe_Status, DESFireCmac e_Mac)
 {
     TX_BUFFER(i_Command, 1);
-    i_Command.AppendUint8(u8_Command);
+    if (!i_Command.AppendUint8(u8_Command)) {
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
   
     return DataExchange(&i_Command, pi_Params, u8_RecvBuf, s32_RecvSize, pe_Status, e_Mac);
 }
@@ -1518,7 +1460,7 @@ int PN532::DataExchange(TxBuffer* pi_Command,               // in (command + par
     // mu8_PacketBuffer is used for input and output
     if (2 + pi_Command->GetCount() + pi_Params->GetCount() > PN532_PACKBUFFSIZE || s32_Overhead + s32_RecvSize > PN532_PACKBUFFSIZE)    
     {
-        Utils::Print("DataExchange(): Invalid parameters\r\n");
+        ESP_LOGE(TAG, "DataExchange(): Invalid parameters");
         return -1;
     }
 
@@ -1526,44 +1468,35 @@ int PN532::DataExchange(TxBuffer* pi_Command,               // in (command + par
     {
         if (mu8_LastAuthKeyNo == NOT_AUTHENTICATED)
         {
-            Utils::Print("Not authenticated\r\n");
+            ESP_LOGE(TAG, "Not authenticated");
             return -1;
         }
     }
 
     if (e_Mac & MAC_Tcrypt) // CRC and encrypt pi_Params
     {
-        if (mu8_DebugLevel > 0)
-        {
-            Utils::Print("* Sess Key IV: ");
-            mpi_SessionKey->PrintIV(LF);
-        }    
+        ESP_LOGD(TAG, "Sess Key IV: %s", BufToHexMsg(mpi_SessionKey->GetIV(), mpi_SessionKey->GetBlockSize()));
     
         // The CRC is calculated over the command (which is not encrypted) and the parameters to be encrypted.
-        uint32_t u32_Crc = Utils::CalcCrc32(pi_Command->GetData(), pi_Command->GetCount(), pi_Params->GetData(), pi_Params->GetCount());
-        if (!pi_Params->AppendUint32(u32_Crc))
+        uint32_t u32_Crc = CalcCrc32(pi_Command->GetData(), pi_Command->GetCount(), pi_Params->GetData(), pi_Params->GetCount());
+        if (!pi_Params->AppendUint32(u32_Crc)) {
+            ESP_LOGE(TAG, "Buffer Overflow");
             return -1; // buffer overflow
+        }
     
         int s32_CryptCount = mpi_SessionKey->CalcPaddedBlockSize(pi_Params->GetCount());
-        if (!pi_Params->SetCount(s32_CryptCount))
+        if (!pi_Params->SetCount(s32_CryptCount)) {
+            ESP_LOGE(TAG, "Buffer Overflow");
             return -1; // buffer overflow
-    
-        if (mu8_DebugLevel > 0)
-        {
-            Utils::Print("* CRC Params:  0x");
-            Utils::PrintHex32(u32_Crc, LF);
-            Utils::Print("* Params:      ");
-            Utils::PrintHexBuf(pi_Params->GetData(), s32_CryptCount, LF);
         }
+    
+        ESP_LOGD(TAG, "CRC Params: 0x%08X", u32_Crc);
+        ESP_LOGD(TAG, "Params: %s", BufToHexMsg(pi_Params->GetData(), s32_CryptCount));
     
         if (!mpi_SessionKey->CryptDataCBC(CBC_SEND, KEY_ENCIPHER, pi_Params->GetData(), pi_Params->GetData(), s32_CryptCount))
             return -1;
     
-        if (mu8_DebugLevel > 0)
-        {
-            Utils::Print("* Params_enc:  ");
-            Utils::PrintHexBuf(pi_Params->GetData(), s32_CryptCount, LF);
-        }    
+        ESP_LOGD(TAG, "Params_enc: %s", BufToHexMsg(pi_Params->GetData(), s32_CryptCount));
     }
 
     byte u8_Command = pi_Command->GetData()[0];
@@ -1583,11 +1516,7 @@ int PN532::DataExchange(TxBuffer* pi_Command,               // in (command + par
         if (!mpi_SessionKey->CalculateCmac(mi_CmacBuffer, u8_CalcMac))
             return -1;
 
-        if (mu8_DebugLevel > 1)
-        {
-            Utils::Print("TX CMAC:  ");
-            Utils::PrintHexBuf(u8_CalcMac, mpi_SessionKey->GetBlockSize(), LF);
-        }
+        ESP_LOGV(TAG, "TX CMAC: %s", BufToHexMsg(u8_CalcMac, mpi_SessionKey->GetBlockSize()));
     }
 
 //    int P=0;
@@ -1618,7 +1547,7 @@ int PN532::DataExchange(TxBuffer* pi_Command,               // in (command + par
     // ReadData() returns 4 byte if status error from the Desfire card
     if (s32_Len < 3 || mu8_PacketBuffer[1] != PN532_COMMAND_INDATAEXCHANGE + 1)
     {
-        Utils::Print("DataExchange() failed\r\n");
+        ESP_LOGE(TAG, "DataExchange() failed");
         return -1;
     }
 
@@ -1677,23 +1606,20 @@ int PN532::DataExchange(TxBuffer* pi_Command,               // in (command + par
             byte* u8_RxMac = mu8_PacketBuffer + 4 + s32_Len;
             
             // The CMAC is calculated over the RX data + the status byte appended to the END of the RX data!
-            if (!mi_CmacBuffer.AppendBuf(mu8_PacketBuffer + 4, s32_Len) ||
-                !mi_CmacBuffer.AppendUint8(u8_CardStatus))
+            if (!mi_CmacBuffer.AppendBuf(mu8_PacketBuffer + 4, s32_Len) || !mi_CmacBuffer.AppendUint8(u8_CardStatus)) {
+                ESP_LOGE(TAG, "Buffer Overflow");
                 return -1;
+            }
 
             if (!mpi_SessionKey->CalculateCmac(mi_CmacBuffer, u8_CalcMac))
                 return -1;
 
-            if (mu8_DebugLevel > 1)
-            {
-                Utils::Print("RX CMAC:  ");
-                Utils::PrintHexBuf(u8_CalcMac, mpi_SessionKey->GetBlockSize(), LF);
-            }
+            ESP_LOGV(TAG, "RX CMAC: %s", BufToHexMsg(u8_CalcMac, mpi_SessionKey->GetBlockSize()));
       
             // For AES the CMAC is 16 byte, but only 8 are transmitted
             if (memcmp(u8_RxMac, u8_CalcMac, 8) != 0)
             {
-                Utils::Print("CMAC Mismatch\r\n");
+                ESP_LOGE(TAG, "CMAC Mismatch");
                 return -1;
             }
         }
@@ -1701,7 +1627,7 @@ int PN532::DataExchange(TxBuffer* pi_Command,               // in (command + par
 
     if (s32_Len > s32_RecvSize)
     {
-        Utils::Print("DataExchange() Buffer overflow\r\n");
+        ESP_LOGE(TAG, "DataExchange() Buffer overflow");
         return -1;
     } 
 
@@ -1714,11 +1640,7 @@ int PN532::DataExchange(TxBuffer* pi_Command,               // in (command + par
             if (!mpi_SessionKey->CryptDataCBC(CBC_RECEIVE, KEY_DECIPHER, u8_RecvBuf, u8_RecvBuf, s32_Len))
                 return -1;
 
-            if (mu8_DebugLevel > 1)
-            {
-                Utils::Print("Decrypt:  ");
-                Utils::PrintHexBuf(u8_RecvBuf, s32_Len, LF);
-            }        
+            ESP_LOGV(TAG, "Decrypt: %s", BufToHexMsg(u8_RecvBuf, s32_Len));
         }    
     }
     return s32_Len;
@@ -1736,69 +1658,68 @@ bool PN532::CheckCardStatus(DESFireStatus e_Status)
         default: break; // This is just to avoid stupid gcc compiler warnings
     }
 
-    Utils::Print("Desfire Error: ");
+    ESP_LOGE(TAG, "Desfire Error:");
     switch (e_Status)
     {
         case ST_OutOfMemory:
-            Utils::Print("Not enough EEPROM memory.\r\n");
+            ESP_LOGE(TAG, "Not enough EEPROM memory.");
             return false;
         case ST_IllegalCommand:
-            Utils::Print("Illegal command.\r\n");
+            ESP_LOGE(TAG, "Illegal command.");
             return false;
         case ST_IntegrityError:
-            Utils::Print("Integrity error.\r\n");
+            ESP_LOGE(TAG, "Integrity error.");
             return false;
         case ST_KeyDoesNotExist:
-            Utils::Print("Key does not exist.\r\n");
+            ESP_LOGE(TAG, "Key does not exist.");
             return false;
         case ST_WrongCommandLen:
-            Utils::Print("Wrong command length.\r\n");
+            ESP_LOGE(TAG, "Wrong command length.");
             return false;
         case ST_PermissionDenied:
-            Utils::Print("Permission denied.\r\n");
+            ESP_LOGE(TAG, "Permission denied.");
             return false;
         case ST_IncorrectParam:
-            Utils::Print("Incorrect parameter.\r\n");
+            ESP_LOGE(TAG, "Incorrect parameter.");
             return false;
         case ST_AppNotFound:
-            Utils::Print("Application not found.\r\n");
+            ESP_LOGE(TAG, "Application not found.");
             return false;
         case ST_AppIntegrityError:
-            Utils::Print("Application integrity error.\r\n");
+            ESP_LOGE(TAG, "Application integrity error.");
             return false;
         case ST_AuthentError:
-            Utils::Print("Authentication error.\r\n");
+            ESP_LOGE(TAG, "Authentication error.");
             return false;
         case ST_LimitExceeded:
-            Utils::Print("Limit exceeded.\r\n");
+            ESP_LOGE(TAG, "Limit exceeded.");
             return false;
         case ST_CardIntegrityError:
-            Utils::Print("Card integrity error.\r\n");
+            ESP_LOGE(TAG, "Card integrity error.");
             return false;
         case ST_CommandAborted:
-            Utils::Print("Command aborted.\r\n");
+            ESP_LOGE(TAG, "Command aborted.");
             return false;
         case ST_CardDisabled:
-            Utils::Print("Card disabled.\r\n");
+            ESP_LOGE(TAG, "Card disabled.");
             return false;
         case ST_InvalidApp:
-            Utils::Print("Invalid application.\r\n");
+            ESP_LOGE(TAG, "Invalid application.");
             return false;
         case ST_DuplicateAidFiles:
-            Utils::Print("Duplicate AIDs or files.\r\n");
+            ESP_LOGE(TAG, "Duplicate AIDs or files.");
             return false;
         case ST_EepromError:
-            Utils::Print("EEPROM error.\r\n");
+            ESP_LOGE(TAG, "EEPROM error.");
             return false;
         case ST_FileNotFound:
-            Utils::Print("File not found.\r\n");
+            ESP_LOGE(TAG, "File not found.");
             return false;
         case ST_FileIntegrityError:
-            Utils::Print("File integrity error.\r\n");
+            ESP_LOGE(TAG, "File integrity error.");
             return false;
         default:
-            Utils::Print("0x");
-            Utils::PrintHex8((byte)e_Status, LF);
+            ESP_LOGE(TAG, "0x%02X", (byte)e_Status);
             return false;
     }
 }
@@ -1811,159 +1732,170 @@ bool PN532::CheckPN532Status(byte u8_Status)
     if (u8_Status == 0)
         return true;
 
-    char s8_Buf[50];
-    sprintf(s8_Buf, "PN532 Error 0x%02X: ", u8_Status);
-    Utils::Print(s8_Buf);
+    ESP_LOGE(TAG, "PN532 Error 0x%02X: ", u8_Status);
 
     switch (u8_Status)
     {
         case 0x01: 
-            Utils::Print("Timeout\r\n");
+            ESP_LOGE(TAG, "Timeout");
             return false;
         case 0x02: 
-            Utils::Print("CRC error\r\n");
+            ESP_LOGE(TAG, "CRC error");
             return false;
         case 0x03: 
-            Utils::Print("Parity error\r\n");
+            ESP_LOGE(TAG, "Parity error");
             return false;
         case 0x04: 
-            Utils::Print("Wrong bit count during anti-collision\r\n");
+            ESP_LOGE(TAG, "Wrong bit count during anti-collision");
             return false;
         case 0x05: 
-            Utils::Print("Framing error\r\n");
+            ESP_LOGE(TAG, "Framing error");
             return false;
         case 0x06: 
-            Utils::Print("Abnormal bit collision\r\n");
+            ESP_LOGE(TAG, "Abnormal bit collision");
             return false;
         case 0x07: 
-            Utils::Print("Insufficient communication buffer\r\n");
+            ESP_LOGE(TAG, "Insufficient communication buffer");
             return false;
         case 0x09: 
-            Utils::Print("RF buffer overflow\r\n");
+            ESP_LOGE(TAG, "RF buffer overflow");
             return false;
         case 0x0A: 
-            Utils::Print("RF field has not been switched on\r\n");
+            ESP_LOGE(TAG, "RF field has not been switched on");
             return false;
         case 0x0B: 
-            Utils::Print("RF protocol error\r\n");
+            ESP_LOGE(TAG, "RF protocol error");
             return false;
         case 0x0D: 
-            Utils::Print("Overheating\r\n");
+            ESP_LOGE(TAG, "Overheating");
             return false;
         case 0x0E: 
-            Utils::Print("Internal buffer overflow\r\n");
+            ESP_LOGE(TAG, "Internal buffer overflow");
             return false;
         case 0x10: 
-            Utils::Print("Invalid parameter\r\n");
+            ESP_LOGE(TAG, "Invalid parameter");
             return false;
         case 0x12: 
-            Utils::Print("Command not supported\r\n");
+            ESP_LOGE(TAG, "Command not supported");
             return false;
         case 0x13: 
-            Utils::Print("Wrong data format\r\n");
+            ESP_LOGE(TAG, "Wrong data format");
             return false;
         case 0x14:
-            Utils::Print("Authentication error\r\n");
+            ESP_LOGE(TAG, "Authentication error");
             return false;
         case 0x23:
-            Utils::Print("Wrong UID check byte\r\n");
+            ESP_LOGE(TAG, "Wrong UID check byte");
             return false;
         case 0x25:
-            Utils::Print("Invalid device state\r\n");
+            ESP_LOGE(TAG, "Invalid device state");
             return false;
         case 0x26:
-            Utils::Print("Operation not allowed\r\n");
+            ESP_LOGE(TAG, "Operation not allowed");
             return false;
         case 0x27:
-            Utils::Print("Command not acceptable\r\n");
+            ESP_LOGE(TAG, "Command not acceptable");
             return false;
         case 0x29:
-            Utils::Print("Target has been released\r\n");
+            ESP_LOGE(TAG, "Target has been released");
             return false;
         case 0x2A:
-            Utils::Print("Card has been exchanged\r\n");
+            ESP_LOGE(TAG, "Card has been exchanged");
             return false;
         case 0x2B:
-            Utils::Print("Card has disappeared\r\n");
+            ESP_LOGE(TAG, "Card has disappeared");
             return false;
         case 0x2C:
-            Utils::Print("NFCID3 initiator/target mismatch\r\n");
+            ESP_LOGE(TAG, "NFCID3 initiator/target mismatch");
             return false;
         case 0x2D:
-            Utils::Print("Over-current\r\n");
+            ESP_LOGE(TAG, "Over-current");
             return false;
         case 0x2E:
-            Utils::Print("NAD msssing\r\n");
+            ESP_LOGE(TAG, "NAD msssing");
             return false;
         default:
-            Utils::Print("Undocumented error\r\n");
+            ESP_LOGE(TAG, "Undocumented error");
             return false;
     }
 }
-
-/*
-bool PN532::GetCardVersion(DESFireCardVersion* pk_Version)
-{
-    if (mu8_DebugLevel > 0) Utils::Print("\r\n*** GetCardVersion()\r\n");
-
-    byte* pu8_Ptr = (byte*)pk_Version;
-
-    DESFireStatus e_Status;
-    int s32_Read = DataExchange(DF_INS_GET_VERSION, NULL, pu8_Ptr, 7, &e_Status, MAC_TmacRmac);
-    if (s32_Read != 7 || e_Status != ST_MoreFrames)
-        return false;
-
-    pu8_Ptr += 7;
-    s32_Read = DataExchange(DF_INS_ADDITIONAL_FRAME, NULL, pu8_Ptr, 7, &e_Status, MAC_Rmac);
-    if (s32_Read != 7 || e_Status != ST_MoreFrames)
-        return false;
-
-    pu8_Ptr += 7;
-    s32_Read = DataExchange(DF_INS_ADDITIONAL_FRAME, NULL, pu8_Ptr, 14, &e_Status, MAC_Rmac);
-    if (s32_Read != 14 || e_Status != ST_Success)
-        return false;
-
-    if (mu8_DebugLevel > 0)
-    {
-        char s8_Buf[80];
-        Utils::Print("--- Desfire Card Details ---\r\n");
-        sprintf(s8_Buf, "Hardware Version: %d.%d\r\n", pk_Version->hardwareMajVersion, pk_Version->hardwareMinVersion);
-        Utils::Print(s8_Buf);
-        sprintf(s8_Buf, "Software Version: %d.%d\r\n", pk_Version->softwareMajVersion, pk_Version->softwareMinVersion);
-        Utils::Print(s8_Buf);
-        sprintf(s8_Buf, "EEPROM size:      %d byte\r\n", 1 << (pk_Version->hardwareStorageSize / 2));
-        Utils::Print(s8_Buf);
-        sprintf(s8_Buf, "Production:       week %X, year 20%02X\r\n", pk_Version->cwProd, pk_Version->yearProd);
-        Utils::Print(s8_Buf);
-        Utils::Print("UID no:           ");         
-        Utils::PrintHexBuf(pk_Version->uid, 7, LF);
-        Utils::Print("Batch no:         ");         
-        Utils::PrintHexBuf(pk_Version->batchNo, 5, LF);
-    }
-    return true;
-}
-*/
 
 bool PN532::FormatCard()
 {
-    if (mu8_DebugLevel > 0) Utils::Print("\r\n*** FormatCard()\r\n");
+    ESP_LOGD(TAG, "FormatCard()");
 
     return (0 == DataExchange(DF_INS_FORMAT_PICC, NULL, NULL, 0, NULL, MAC_TmacRmac));
 }
 
 bool PN532::EnableRandomIDForever()
 {
-    if (mu8_DebugLevel > 0) Utils::Print("\r\n*** EnableRandomIDForever()\r\n");
+    ESP_LOGD(TAG, "EnableRandomIDForever()");
 
     TX_BUFFER(i_Command, 2);
-    i_Command.AppendUint8(DFEV1_INS_SET_CONFIGURATION);
-    i_Command.AppendUint8(0x00); // subcommand 00
-    
+    if (!i_Command.AppendUint8(DFEV1_INS_SET_CONFIGURATION)) {
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
+    if (!i_Command.AppendUint8(0x00)) { // subcommand 00
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
     TX_BUFFER(i_Params, 16);
-    i_Params.AppendUint8(0x02); // 0x02 = enable random ID, 0x01 = disable format
-
+    if (!i_Params.AppendUint8(0x02)) { // 0x02 = enable random ID, 0x01 = disable format
+        ESP_LOGE(TAG, "Buffer Overflow");
+    }
     // The TX CMAC must not be calculated here because a CBC encryption operation has already been executed
     return (0 == DataExchange(&i_Command, &i_Params, NULL, 0, NULL, MAC_TcryptRmac));
+}
+
+char* PN532::BufToHexMsg(const byte* u8_Data, const uint32_t u32_DataLen, int s32_Brace1, int s32_Brace2)
+{
+    const char* pszNibbleToHex = "0123456789ABCDEF";
+    char msg[u32_DataLen * 3 + (s32_Brace1 >= 0 ? 1 : 0) + (s32_Brace2 >= 0 ? 1 : 0)];
+    uint32_t pos = 0;
+    for (uint32_t i = 0; i < u32_DataLen; i++)
+    {
+        if ((int)i == s32_Brace1) {
+            msg[pos++] = ' ';
+            msg[pos++] = '<';
+        }
+        else if ((int)i == s32_Brace2) {
+            msg[pos++] = '>';
+            msg[pos++] = ' ';
+        }
+        else if (i > 0)
+            msg[pos++] = ' ';
+        msg[pos++] = pszNibbleToHex[u8_Data[i] >> 4];
+        msg[pos++] = pszNibbleToHex[u8_Data[i] & 0x0F];
+    }
+    msg[pos] = 0;
+    return msg;
+}
+
+// This CRC is used for ISO and AES authentication.
+// The new Desfire EV1 authentication calculates the CRC32 also over the command, but the command is not encrypted later.
+// This function allows to include the command into the calculation without the need to add the command to the same buffer that is later encrypted.
+uint32_t PN532::CalcCrc32(const byte* u8_Data1, int s32_Length1, // data to process
+                          const byte* u8_Data2, int s32_Length2) // optional additional data to process (these parameters may be omitted)
+{
+    uint32_t u32_Crc = 0xFFFFFFFF;
+    u32_Crc = CalcCrc32(u8_Data1, s32_Length1, u32_Crc);
+    u32_Crc = CalcCrc32(u8_Data2, s32_Length2, u32_Crc);
+    return u32_Crc;
+}
+
+// private
+uint32_t PN532::CalcCrc32(const byte* u8_Data, int s32_Length, uint32_t u32_Crc)
+{
+    for (int i=0; i<s32_Length; i++)
+    {
+        u32_Crc ^= u8_Data[i];
+        for (int b=0; b<8; b++)
+        {
+            bool b_Bit = (u32_Crc & 0x01) > 0;
+            u32_Crc >>= 1;
+            if (b_Bit) u32_Crc ^= 0xEDB88320;
+        }
+    }
+    return u32_Crc;
 }
 
 }  // namespace pn532

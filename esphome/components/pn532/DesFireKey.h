@@ -65,7 +65,7 @@ public:
         if (s32_ByteCount < ms32_BlockSize ||
             s32_ByteCount % ms32_BlockSize)
         {
-            Utils::Print("Invalid CBC block size\r\n");  
+//            ESP_LOGE(TAG, "Invalid CBC block size");  
             return false;
         }
       
@@ -74,14 +74,18 @@ public:
         {
             if (e_CBC == CBC_SEND)
             {
-                Utils::XorDataBlock(u8_Temp, u8_In, mu8_IV, ms32_BlockSize);
-                if (!CryptDataBlock(u8_Out, u8_Temp, e_Cipher)) return false;
+                for (int B = 0; B < ms32_BlockSize; B++)
+                    u8_Temp[B] = u8_In[B] ^ mu8_IV[B];
+                if (!CryptDataBlock(u8_Out, u8_Temp, e_Cipher))
+                    return false;
                 memcpy(mu8_IV, u8_Out, ms32_BlockSize);
             }
             else // CBC_RECEIVE
             {
-                if (!CryptDataBlock(u8_Temp, u8_In, e_Cipher)) return false;
-                Utils::XorDataBlock(u8_Temp, u8_Temp, mu8_IV, ms32_BlockSize); // Step 1 (mu8_IV is used here)
+                if (!CryptDataBlock(u8_Temp, u8_In, e_Cipher)) 
+                    return false;
+                for (int B = 0; B < ms32_BlockSize; B++)                       // Step 1 (mu8_IV is used here)
+                    u8_Temp[B] = u8_Temp[B] ^ mu8_IV[B];
                 memcpy(mu8_IV, u8_In,   ms32_BlockSize);                       // Step 2 (mu8_IV can be changed now, u8_In has not yet been modified)
                 memcpy(u8_Out, u8_Temp, ms32_BlockSize);                       // Step 3 (here also u8_In is modified if u8_Out and u8_In are the same buffer)
             }
@@ -102,12 +106,17 @@ public:
             return false;
 
         memcpy (mu8_Cmac1, u8_Data, ms32_BlockSize);
-        Utils::BitShiftLeft(mu8_Cmac1, ms32_BlockSize);
+        for (int n=0; n<ms32_BlockSize-1; n++) 
+            mu8_Cmac1[n] = (mu8_Cmac1[n] << 1) | (mu8_Cmac1[n+1] >> 7);
+        mu8_Cmac1[ms32_BlockSize - 1] <<= 1;
+
         if (u8_Data[0] & 0x80)
             mu8_Cmac1[ms32_BlockSize-1] ^= u8_R;
         
         memcpy (mu8_Cmac2, mu8_Cmac1, ms32_BlockSize);
-        Utils::BitShiftLeft(mu8_Cmac2, ms32_BlockSize);
+        for (int n=0; n<ms32_BlockSize-1; n++) 
+            mu8_Cmac2[n] = (mu8_Cmac2[n] << 1) | (mu8_Cmac2[n+1] >> 7);
+        mu8_Cmac2[ms32_BlockSize - 1] <<= 1;
         if (mu8_Cmac1[0] & 0x80)
             mu8_Cmac2[ms32_BlockSize-1] ^= u8_R;
 
@@ -130,11 +139,13 @@ public:
                 if (!i_Buffer.AppendUint8(0x00))
                     return false; // Buffer is full
             }
-            Utils::XorDataBlock(i_Buffer + i_Buffer.GetCount() - ms32_BlockSize, mu8_Cmac2, ms32_BlockSize);
+            for (int B=0; B<ms32_BlockSize; B++)
+                (i_Buffer + i_Buffer.GetCount() - ms32_BlockSize)[B] ^= mu8_Cmac2[B];
         } 
         else // no padding required
         {
-            Utils::XorDataBlock(i_Buffer + i_Buffer.GetCount() - ms32_BlockSize, mu8_Cmac1, ms32_BlockSize);
+            for (int B=0; B<ms32_BlockSize; B++)
+                (i_Buffer + i_Buffer.GetCount() - ms32_BlockSize)[B] ^= mu8_Cmac1[B];
         }
 
         if (!CryptDataCBC(CBC_SEND, KEY_ENCIPHER, i_Buffer, i_Buffer, i_Buffer.GetCount()))
@@ -181,17 +192,24 @@ public:
         memset(mu8_IV, 0, ms32_BlockSize);
     }
 
+    inline byte* GetIV() 
+    {
+        return mu8_IV;
+    }
+
+/*
     // just for debugging
     inline void PrintIV(const char* s8_LF=NULL)
     {
         Utils::PrintHexBuf(mu8_IV, ms32_BlockSize, s8_LF);
     }
+*/
 
     static bool CheckValid(DESFireKey* pi_Key)
     {
         if (pi_Key == NULL || pi_Key->GetKeyType() == DF_KEY_INVALID)
         {
-            Utils::Print("Invalid key\r\n");
+//            ESP_LOGE(TAG, "Invalid key");
             return false;
         }
         return true;
@@ -207,6 +225,7 @@ public:
         return s32_ByteCount;
     }
 
+/*
     // Just for debugging
     void PrintKey(const char* s8_LF=NULL)
     {
@@ -218,6 +237,7 @@ public:
         Utils::Print(GetKeyTypeAsString(me_KeyType, ms32_KeySize));
         Utils::Print(")", s8_LF);
     }
+*/
 
     static const char* GetKeyTypeAsString(DESFireKeyType e_KeyType, int s32_KeySize=0)
     {

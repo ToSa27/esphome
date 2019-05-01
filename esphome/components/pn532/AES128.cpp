@@ -44,7 +44,7 @@
  */
 
 #include "AES128.h"
-#include "Utils.h"
+//#include "Utils.h"
  
 // foreward sbox
 const unsigned char sbox[256] =   {
