@@ -12,11 +12,11 @@ MULTI_CONF = True
 pn532_ns = cg.esphome_ns.namespace('pn532')
 PN532 = pn532_ns.class_('PN532', cg.PollingComponent, spi.SPIDevice)
 PN532Trigger = pn532_ns.class_('PN532Trigger', automation.Trigger.template(cg.std_string))
-
+PN532NewCardAction = pn532_ns.class_('NewCardAction', automation.Action)
 
 def validate_card_type(value):
     value = cv.string_strict(value)
-    if value not in ['classic', 'ev1_des', 'ev1_aes']:
+    if value not in ['classic', 'ev1_des', 'ev1_aes', 'ev1_']:
         raise cv.Invalid("Valid cart types: classic, ev1_des or ev1_aes.")
     return value
 
@@ -49,6 +49,9 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_KEY_VERSION): cv.All(cv.int_, cv.Range(min=1, max=255)),
 }).extend(cv.polling_component_schema('1s')).extend(spi.SPI_DEVICE_SCHEMA)
 
+PN532_ACTION_SCHEMA = maybe_simple_id({
+    cv.Required(CONF_ID): cv.use_id(PN532),
+})
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -80,3 +83,5 @@ def to_code(config):
 
     if CONF_KEY_VERSION in config:
         cg.add(var.set_key_version(config[CONF_KEY_VERSION]))
+
+@automation.register_action('pn532.new_card', PN532NewCardAction, SWITCH_ACTION_SCHEMA)

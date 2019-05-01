@@ -451,6 +451,8 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
     byte ReadData(byte* buff, byte len);
     bool ReadPassiveTargetID(byte* u8_UidBuffer, byte* pu8_UidLength, eCardType* pe_CardType);
 
+    void new_card();
+
  protected:
   bool is_device_msb_first() override;
 
@@ -486,6 +488,9 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
   bool GenerateDesfireSecrets(uint8_t* user_id, DESFireKey* pi_AppMasterKey, byte u8_StoreValue[16]);
   bool StoreDesfireSecret(uint8_t* user_id);
   bool CheckPN532Status(byte u8_Status);
+  bool WaitForCard(kCard* pk_Card);
+  bool EncodeCard();
+  bool ChangePiccMasterKey();
 
 private:
     byte SECRET_PICC_MASTER_KEY[24];
@@ -540,6 +545,16 @@ class PN532BinarySensor : public binary_sensor::BinarySensor {
 class PN532Trigger : public Trigger<std::string> {
  public:
   void process(const uint8_t *uid, uint8_t uid_length);
+};
+
+template<typename... Ts> class PN532NewCardAction : public Action<Ts...> {
+ public:
+  explicit PN532NewCardAction(PN532 *a_pn532) : pn532_(a_pn532) {}
+
+  void play(Ts... x) override { this->pn532_->new_card(); }
+
+ protected:
+  PN532 *pn532_;
 };
 
 }  // namespace pn532

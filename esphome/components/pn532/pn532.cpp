@@ -601,6 +601,108 @@ bool PN532::GetApplicationIDs(uint32_t u32_IDlist[28], byte* pu8_AppCount)
     return true;
 }
 
+bool PN532::WaitForCard(kCard* pk_Card)
+{
+    ESP_LOGI(TAG, "Please approximate the card to the reader now!");
+    ESP_LOGI(TAG, "You have 30 seconds.");
+    uint32_t u32_Start = millis();
+    
+    while (true)
+    {
+        if (ReadCard(pk_Card) && pk_Card->u8_UidLength > 0)
+        {
+            // Avoid that later the door is opened for this card if the card is a long time in the RF field.
+            last_card = *pk_Card;
+
+            // All the stuff in this function takes about 2 seconds because the SPI bus speed has been throttled to 10 kHz.
+            ESP_LOGI(TAG, "Processing... (please do not remove the card)");
+            return true;
+        }
+      
+        if ((millis() - u32_Start) > 30000)
+        {
+            ESP_LOGW(TAG, "Timeout waiting for card.");
+            return false;
+        }
+    }
+}
+
+bool PN532::EncodeCard()
+{
+    kCard k_Card;   
+    if (!WaitForCard(&k_Card))
+        return;
+
+/*     
+    // First the entire memory of s8_Name is filled with random data.
+    // Then the username + terminating zero is written over it.
+    // The result is for example: s8_Name[NAME_BUF_SIZE] = { 'P', 'e', 't', 'e', 'r', 0, 0xDE, 0x45, 0x70, 0x5A, 0xF9, 0x11, 0xAB }
+    // The string operations like stricmp() will only read up to the terminating zero, 
+    // but the application master key is derived from user name + random data.
+    Utils::GenerateRandom((byte*)k_User.s8_Name, NAME_BUF_SIZE);
+    strcpy(k_User.s8_Name, s8_UserName);
+
+    // Utils::Print("User + Random data: ");
+    // Utils::PrintHexBuf((byte*)k_User.s8_Name, NAME_BUF_SIZE, LF);
+*/
+/*
+    kUser k_Found;  
+    if (UserManager::FindUser(k_User.ID.u64, &k_Found))
+    {
+        Utils::Print("This card has already been stored for user ");
+        Utils::Print(k_Found.s8_Name, LF);
+        return;
+    }
+*/
+
+    if (card_type_ == "classic")
+    {
+        // nothing to do - classic card identified by UID only (insecure)
+    }
+    if (card_type_ == "ev1_des" || card_type_ == "ev1_aes" || card_type_ == "ev1_rnd")
+    {
+        if (!ChangePiccMasterKey())
+            return;
+        if (card_type_ == "ev1_rnd")
+        {
+            // nothing to do - ev1 card in random mode identified by UID only (secure)
+        }
+        else if (card_type_ == "ev1_des" || card_type_ == "ev1_aes")
+        {
+            if (!StoreDesfireSecret(k_Card.Uid.u8))
+            {
+                ESP_LOGE(TAG, "Could not personalize the card.");
+                return;
+            }
+        }
+    }
+}
+
+bool PN532::ChangePiccMasterKey()
+{
+    byte u8_KeyVersion;
+    if (!AuthenticatePICC(&u8_KeyVersion))
+        return false;
+
+    if (u8_KeyVersion != CARD_KEY_VERSION) // empty card
+    {
+        // Store the secret PICC master key on the card.
+        // A key change always requires a new authentication
+        if (card_type_ == "ev1_des") {
+            if (!this->ChangeKey(0, &gi_PiccMasterKey_DES, NULL))
+                return false;
+            if (!this->Authenticate(0, &gi_PiccMasterKey_DES))
+                return false;
+        } else if (card_type_ == "ev1_aes") {
+            if (!this->ChangeKey(0, &gi_PiccMasterKey_AES, NULL))
+                return false;
+            if (!this->Authenticate(0, &gi_PiccMasterKey_AES))
+                return false;
+        } 
+    }
+    return true;
+}
+
 bool PN532::StoreDesfireSecret(uint8_t* user_id)
 {
     if (CARD_APPLICATION_ID == 0x000000 || CARD_KEY_VERSION == 0)
@@ -798,7 +900,7 @@ bool PN532::ChangeKey(byte u8_KeyNo, DESFireKey* pi_NewKey, DESFireKey* pi_CurKe
             return false;
         }
 
-        LogDebugHex("Cur Key: %s", pi_CurKey->Data(), pi_CurKey->GetKeySize(16));
+        LogDebugHex("Cur Key: ", pi_CurKey->Data(), pi_CurKey->GetKeySize(16));
         ESP_LOGD(TAG, "Cur Key Type: %s", DESFireKey::GetKeyTypeAsString(pi_CurKey->GetKeyType(), pi_CurKey->GetKeySize()));
 
         // The current key and the new key must be XORed        
@@ -820,7 +922,7 @@ bool PN532::ChangeKey(byte u8_KeyNo, DESFireKey* pi_NewKey, DESFireKey* pi_CurKe
         ESP_LOGE(TAG, "Buffer Overflow");
     }
 
-    ESP_LOGD(TAG, "CRC Crypto: 0x", u32_Crc);
+    ESP_LOGD(TAG, "CRC Crypto: 0x%08X", u32_Crc);
 
     if (!b_SameKey)
     {
@@ -829,7 +931,7 @@ bool PN532::ChangeKey(byte u8_KeyNo, DESFireKey* pi_NewKey, DESFireKey* pi_CurKe
             ESP_LOGE(TAG, "Buffer Overflow");
         }
 
-    	ESP_LOGD(TAG, "CRC New Key: 0x", u32_CrcNew);
+    	ESP_LOGD(TAG, "CRC New Key: 0x%08X", u32_CrcNew);
     }
 
     // Get the padded length of the Cryptogram to be encrypted
@@ -1910,6 +2012,11 @@ uint32_t PN532::CalcCrc32(const byte* u8_Data, int s32_Length, uint32_t u32_Crc)
         }
     }
     return u32_Crc;
+}
+
+void PN532::new_card() {
+  ESP_LOGD(TAG, "Encoding new card.");
+  this->EncodeCard();
 }
 
 }  // namespace pn532
