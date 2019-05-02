@@ -528,8 +528,10 @@ private:
 class PN532BinarySensor : public binary_sensor::BinarySensor {
  public:
   void set_uid(const std::vector<uint8_t> &uid) { uid_ = uid; }
+  void set_card_type(const std::string &card_type);
+  std::string get_card_type();
 
-  bool process(const uint8_t *data, uint8_t len);
+  bool process(kCard card);
 
   void on_scan_end() {
     if (!this->found_) {
@@ -540,12 +542,13 @@ class PN532BinarySensor : public binary_sensor::BinarySensor {
 
  protected:
   std::vector<uint8_t> uid_;
+  std::string card_type_;
   bool found_{false};
 };
 
 class PN532Trigger : public Trigger<std::string> {
  public:
-  void process(const uint8_t *uid, uint8_t uid_length);
+  void process(kCard card);
 };
 
 template<typename... Ts> class PN532EncodeAction : public Action<Ts...> {

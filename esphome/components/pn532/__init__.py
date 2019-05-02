@@ -59,30 +59,22 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield spi.register_spi_device(var, config)
-
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_trigger(trigger))
         yield automation.build_automation(trigger, [(cg.std_string, 'x')], conf)
-
     if CONF_CARD_TYPE in config:
         cg.add(var.set_card_type(config[CONF_CARD_TYPE]))
-
     if CONF_MASTER_KEY in config:
         cg.add(var.set_master_key(config[CONF_MASTER_KEY]))
-
     if CONF_APPLICATION_KEY in config:
         cg.add(var.set_application_key(config[CONF_APPLICATION_KEY]))
-
     if CONF_VALUE_KEY in config:
         cg.add(var.set_value_key(config[CONF_VALUE_KEY]))
-
     if CONF_APPLICATION_ID in config:
         cg.add(var.set_application_id(config[CONF_APPLICATION_ID]))
-
     if CONF_FILE_ID in config:
         cg.add(var.set_file_id(config[CONF_FILE_ID]))
-
     if CONF_KEY_VERSION in config:
         cg.add(var.set_key_version(config[CONF_KEY_VERSION]))
 

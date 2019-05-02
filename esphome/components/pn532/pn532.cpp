@@ -1010,7 +1010,8 @@ void PN532::update() {
     return;
   // classic card (insecure)
   if ((k_Card.e_CardType & CARD_Desfire) == 0)
-    return;
+    if (card_type_ != "classic")
+        return;
   if (k_Card.e_CardType == CARD_DesRandom) // random ID Desfire card
   {
       // random card with default key
@@ -1041,11 +1042,11 @@ void PN532::loop() {
   bool report = true;
   // 1. Go through all triggers
   for (auto *trigger : this->triggers_)
-    trigger->process(last_card.Uid.u8, last_card.u8_UidLength);
+    trigger->process(last_card);
 
   // 2. Find a binary sensor
   for (auto *tag : this->binary_sensors_) {
-    if (tag->process(last_card.Uid.u8, last_card.u8_UidLength)) {
+    if (tag->process(last_card)) {
       // 2.1 if found, do not dump
       report = false;
     }
@@ -1271,12 +1272,28 @@ void PN532::dump_config() {
   }
 }
 
-bool PN532BinarySensor::process(const uint8_t *data, uint8_t len) {
-  if (len != this->uid_.size())
+void PN532BinarySensor::set_card_type(const std::string &card_type) { this->card_type_ = card_type; }
+std::string PN532BinarySensor::get_card_type() {
+  if (this->card_type_.length() > 0)
+    return this->card_type_;
+  return "classic";
+}
+
+bool PN532BinarySensor::process(kCard card) {
+  if (card.e_CardType == CARD_Unknown && this->card_type_ != "classic")
     return false;
 
-  for (uint8_t i = 0; i < len; i++) {
-    if (data[i] != this->uid_[i])
+  if (card.e_CardType == CARD_Desfire && this->card_type_ != "ev1_des" && this->card_type_ != "ev1_aes")
+    return false;
+
+  if (card.e_CardType == CARD_DesRandom && this->card_type_ != "ev1_des_rnd" && this->card_type_ != "ev1_aes_rnd")
+    return false;
+
+  if (card.u8_UidLength != this->uid_.size())
+    return false;
+
+  for (uint8_t i = 0; i < card.u8_UidLength; i++) {
+    if (card.Uid.u8[i] != this->uid_[i])
       return false;
   }
 
@@ -1284,9 +1301,9 @@ bool PN532BinarySensor::process(const uint8_t *data, uint8_t len) {
   this->found_ = true;
   return true;
 }
-void PN532Trigger::process(const uint8_t *uid, uint8_t uid_length) {
+void PN532Trigger::process(kCard card) {
   char buf[32];
-  format_uid(buf, uid, uid_length);
+  format_uid(buf, card.Uid.u8, card.u8_UidLength);
   this->trigger(std::string(buf));
 }
 
