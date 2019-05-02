@@ -451,7 +451,8 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
     byte ReadData(byte* buff, byte len);
     bool ReadPassiveTargetID(byte* u8_UidBuffer, byte* pu8_UidLength, eCardType* pe_CardType);
 
-    void new_card();
+    void encode();
+    bool encoding;
 
  protected:
   bool is_device_msb_first() override;
@@ -547,14 +548,24 @@ class PN532Trigger : public Trigger<std::string> {
   void process(const uint8_t *uid, uint8_t uid_length);
 };
 
-template<typename... Ts> class PN532NewCardAction : public Action<Ts...> {
+template<typename... Ts> class PN532EncodeAction : public Action<Ts...> {
  public:
-  explicit PN532NewCardAction(PN532 *a_pn532) : pn532_(a_pn532) {}
+  explicit PN532EncodeAction(PN532 *a_pn532) : pn532_(a_pn532) {}
 
-  void play(Ts... x) override { this->pn532_->new_card(); }
+  void play(Ts... x) override { this->pn532_->encode(); }
 
  protected:
   PN532 *pn532_;
+};
+
+template<typename... Ts> class PN532EncodingCondition : public Condition<Ts...> {
+ public:
+  PN532EncodingCondition(PN532 *parent, bool state) : parent_(parent), state_(state) {}
+  bool check(Ts... x) override { return this->parent_->encoding == this->state_; }
+
+ protected:
+  PN532 *parent_;
+  bool state_;
 };
 
 }  // namespace pn532

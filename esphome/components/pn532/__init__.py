@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
+from esphome.automation import Condition, maybe_simple_id
 from esphome.components import spi
 from esphome.const import CONF_ID, CONF_ON_TAG, CONF_TRIGGER_ID, CONF_CARD_TYPE, CONF_MASTER_KEY, CONF_APPLICATION_KEY, CONF_VALUE_KEY, CONF_APPLICATION_ID, CONF_FILE_ID, CONF_KEY_VERSION
 from string import hexdigits
@@ -12,12 +13,13 @@ MULTI_CONF = True
 pn532_ns = cg.esphome_ns.namespace('pn532')
 PN532 = pn532_ns.class_('PN532', cg.PollingComponent, spi.SPIDevice)
 PN532Trigger = pn532_ns.class_('PN532Trigger', automation.Trigger.template(cg.std_string))
-PN532NewCardAction = pn532_ns.class_('NewCardAction', automation.Action)
+PN532EncodeAction = pn532_ns.class_('PN532EncodeAction', automation.Action)
+PN532EncodingCondition = pn532_ns.class_('PN532EncodingCondition', Condition)
 
 def validate_card_type(value):
     value = cv.string_strict(value)
-    if value not in ['classic', 'ev1_des', 'ev1_aes', 'ev1_']:
-        raise cv.Invalid("Valid cart types: classic, ev1_des or ev1_aes.")
+    if value not in ['classic', 'ev1_des', 'ev1_aes', 'ev1_des_rnd', 'ev1_aes_rnd']:
+        raise cv.Invalid("Valid cart types: classic, ev1_des, ev1_des_rnd, ev1_aes or ev1_aes_rnd.")
     return value
 
 def validate_hex(value, length):
@@ -84,4 +86,9 @@ def to_code(config):
     if CONF_KEY_VERSION in config:
         cg.add(var.set_key_version(config[CONF_KEY_VERSION]))
 
-@automation.register_action('pn532.new_card', PN532NewCardAction, SWITCH_ACTION_SCHEMA)
+@automation.register_action('pn532.encode', PN532EncodeAction, PN532_ACTION_SCHEMA)
+
+@automation.register_condition('pn532.encoding', PN532EncodingCondition, PN532_ACTION_SCHEMA)
+def pn532_encoding_to_code(config, condition_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(condition_id, template_arg, paren)

@@ -75,6 +75,8 @@ void PN532::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PN532...");
   this->spi_setup();
 
+  this->encoding = false;
+
   // Wake the chip up from power down
   // 1. Enable the SS line for at least 2ms
   // 2. Send a dummy command to get the protocol synced up
@@ -166,9 +168,9 @@ void PN532::setup() {
   }
 
   // Initialize key
-  if (get_card_type() == "ev1_des")
+  if (get_card_type() == "ev1_des" || get_card_type() == "ev1_des_rnd")
     gi_PiccMasterKey_DES.SetKeyData(SECRET_PICC_MASTER_KEY, sizeof(SECRET_PICC_MASTER_KEY), CARD_KEY_VERSION);
-  else if (get_card_type() == "ev1_aes")
+  else if (get_card_type() == "ev1_aes" || get_card_type() == "ev1_aes_rnd")
     gi_PiccMasterKey_AES.SetKeyData(SECRET_PICC_MASTER_KEY, sizeof(SECRET_PICC_MASTER_KEY), CARD_KEY_VERSION);
 }
 
@@ -412,10 +414,10 @@ bool PN532::AuthenticatePICC(byte* pu8_KeyVersion)
   // The factory default key has version 0, while a personalized card has key version CARD_KEY_VERSION
   if (*pu8_KeyVersion == CARD_KEY_VERSION)
   {
-    if (get_card_type() == "ev1_des") {
+    if (get_card_type() == "ev1_des" || get_card_type() == "ev1_des_rnd") {
       if (!this->Authenticate(0, &gi_PiccMasterKey_DES))
         return false;
-    } else if (get_card_type() == "ev1_des") {
+    } else if (get_card_type() == "ev1_aes" || get_card_type() == "ev1_aes_rnd") {
       if (!this->Authenticate(0, &gi_PiccMasterKey_AES))
         return false;
     } else {
@@ -466,10 +468,10 @@ bool PN532::CheckDesfireSecret(uint8_t* user_id)
   DES i_AppMasterKey_DES;
   AES i_AppMasterKey_AES;
   byte u8_StoreValue[16];
-  if (get_card_type() == "ev1_des") {
+  if (get_card_type() == "ev1_des" || get_card_type() == "ev1_des_rnd") {
     if (!GenerateDesfireSecrets(user_id, &i_AppMasterKey_DES, u8_StoreValue))
       return false;
-  } else if (get_card_type() == "ev1_aes") {
+  } else if (get_card_type() == "ev1_aes" || get_card_type() == "ev1_aes_rnd") {
     if (!GenerateDesfireSecrets(user_id, &i_AppMasterKey_AES, u8_StoreValue))
       return false;
   } else {
@@ -485,10 +487,10 @@ bool PN532::CheckDesfireSecret(uint8_t* user_id)
     return false;
   if (!this->SelectApplication(CARD_APPLICATION_ID))
     return false;
-  if (get_card_type() == "ev1_des") {
+  if (get_card_type() == "ev1_des" || get_card_type() == "ev1_des_rnd") {
     if (!this->Authenticate(0, &i_AppMasterKey_DES))
       return false;
-  } else if (get_card_type() == "ev1_aes") {
+  } else if (get_card_type() == "ev1_aes" || get_card_type() == "ev1_aes_rnd") {
     if (!this->Authenticate(0, &i_AppMasterKey_AES))
       return false;
   } else {
@@ -629,9 +631,12 @@ bool PN532::WaitForCard(kCard* pk_Card)
 
 bool PN532::EncodeCard()
 {
+    encoding = true;
     kCard k_Card;   
-    if (!WaitForCard(&k_Card))
-        return;
+    if (!WaitForCard(&k_Card)) {
+        encoding = false;
+        return false;
+    }
 
 /*     
     // First the entire memory of s8_Name is filled with random data.
@@ -659,11 +664,13 @@ bool PN532::EncodeCard()
     {
         // nothing to do - classic card identified by UID only (insecure)
     }
-    if (card_type_ == "ev1_des" || card_type_ == "ev1_aes" || card_type_ == "ev1_rnd")
+    if (card_type_ == "ev1_des" || card_type_ == "ev1_aes" || card_type_ == "ev1_des_rnd" || card_type_ == "ev1_aes_rnd")
     {
-        if (!ChangePiccMasterKey())
-            return;
-        if (card_type_ == "ev1_rnd")
+        if (!ChangePiccMasterKey()) {
+            encoding = false;
+            return false;
+        }
+        if (card_type_ == "ev1_des_rnd" || card_type_ == "ev1_aes_rnd")
         {
             // nothing to do - ev1 card in random mode identified by UID only (secure)
         }
@@ -672,10 +679,13 @@ bool PN532::EncodeCard()
             if (!StoreDesfireSecret(k_Card.Uid.u8))
             {
                 ESP_LOGE(TAG, "Could not personalize the card.");
-                return;
+                encoding = false;
+                return false;
             }
         }
     }
+    encoding = false;
+    return true;
 }
 
 bool PN532::ChangePiccMasterKey()
@@ -688,12 +698,12 @@ bool PN532::ChangePiccMasterKey()
     {
         // Store the secret PICC master key on the card.
         // A key change always requires a new authentication
-        if (card_type_ == "ev1_des") {
+        if (card_type_ == "ev1_des" || get_card_type() == "ev1_des_rnd") {
             if (!this->ChangeKey(0, &gi_PiccMasterKey_DES, NULL))
                 return false;
             if (!this->Authenticate(0, &gi_PiccMasterKey_DES))
                 return false;
-        } else if (card_type_ == "ev1_aes") {
+        } else if (card_type_ == "ev1_aes" || get_card_type() == "ev1_aes_rnd") {
             if (!this->ChangeKey(0, &gi_PiccMasterKey_AES, NULL))
                 return false;
             if (!this->Authenticate(0, &gi_PiccMasterKey_AES))
@@ -711,10 +721,10 @@ bool PN532::StoreDesfireSecret(uint8_t* user_id)
     DES i_AppMasterKey_DES;
     AES i_AppMasterKey_AES;
     byte u8_StoreValue[16];
-    if (get_card_type() == "ev1_des") {
+    if (get_card_type() == "ev1_des" || get_card_type() == "ev1_des_rnd") {
         if (!GenerateDesfireSecrets(user_id, &i_AppMasterKey_DES, u8_StoreValue))
             return false;
-    } else if (get_card_type() == "ev1_aes") {
+    } else if (get_card_type() == "ev1_aes" || get_card_type() == "ev1_aes_rnd") {
         if (!GenerateDesfireSecrets(user_id, &i_AppMasterKey_AES, u8_StoreValue))
             return false;
     } else {
@@ -727,10 +737,10 @@ bool PN532::StoreDesfireSecret(uint8_t* user_id)
         return false;
 
     // Create the new application with default settings (we must still have permission to change the application master key later)
-    if (get_card_type() == "ev1_des") {
+    if (get_card_type() == "ev1_des" || get_card_type() == "ev1_des_rnd") {
         if (!CreateApplication(CARD_APPLICATION_ID, KS_FACTORY_DEFAULT, 1, i_AppMasterKey_DES.GetKeyType()))
             return false;
-    } else if (get_card_type() == "ev1_aes") {
+    } else if (get_card_type() == "ev1_aes" || get_card_type() == "ev1_aes_rnd") {
         if (!CreateApplication(CARD_APPLICATION_ID, KS_FACTORY_DEFAULT, 1, i_AppMasterKey_AES.GetKeyType()))
             return false;
     } else {
@@ -746,14 +756,14 @@ bool PN532::StoreDesfireSecret(uint8_t* user_id)
     // Authentication with the application's master key is required
     // Change the master key of the application
     // A key change always requires a new authentication with the new key
-    if (get_card_type() == "ev1_des") {
+    if (get_card_type() == "ev1_des" || get_card_type() == "ev1_des_rnd") {
         if (!Authenticate(0, &DES3_DEFAULT_KEY))
             return false;
         if (!ChangeKey(0, &i_AppMasterKey_DES, NULL))
             return false;
         if (!Authenticate(0, &i_AppMasterKey_DES))
             return false;
-    } else if (get_card_type() == "ev1_aes") {
+    } else if (get_card_type() == "ev1_aes" || get_card_type() == "ev1_aes_rnd") {
         if (!Authenticate(0, &AES_DEFAULT_KEY))
             return false;
         if (!ChangeKey(0, &i_AppMasterKey_AES, NULL))
@@ -2014,9 +2024,13 @@ uint32_t PN532::CalcCrc32(const byte* u8_Data, int s32_Length, uint32_t u32_Crc)
     return u32_Crc;
 }
 
-void PN532::new_card() {
+void PN532::encode() {
   ESP_LOGD(TAG, "Encoding new card.");
-  this->EncodeCard();
+  if (!this->EncodeCard()) {
+      ESP_LOGW(TAG, "No new card encoded");
+  } else {
+      ESP_LOGI(TAG, "New card encoded");
+  }
 }
 
 }  // namespace pn532
