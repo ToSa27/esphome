@@ -385,6 +385,9 @@ bool PN532::ReadCard(kCard* pk_Card)
         return false;
     }
 
+    if (!this->encoding)
+        this->detecting_ = true;
+
     if (pk_Card->e_CardType == CARD_DesRandom) // The card is a Desfire card in random ID mode
     {
       if (get_card_type() == "classic") {
@@ -499,10 +502,14 @@ bool PN532::CheckDesfireSecret(uint8_t* user_id)
   }
   // Read the 16 byte secret from the card
   byte u8_FileData[16];
-  if (!this->ReadFileData(CARD_FILE_ID, 0, 16, u8_FileData))
+  if (!this->ReadFileData(CARD_FILE_ID, 0, 16, u8_FileData)) {
+    ESP_LOGE("Error reading file data.");
     return false;
-  if (memcmp(u8_FileData, u8_StoreValue, 16) != 0)
+  }
+  if (memcmp(u8_FileData, u8_StoreValue, 16) != 0) {
+    ESP_LOGE("Error comparing file data.");
     return false;
+  }
   return true;
 }
 
@@ -984,9 +991,13 @@ bool PN532::ChangeKey(byte u8_KeyNo, DESFireKey* pi_NewKey, DESFireKey* pi_CurKe
 void PN532::update() {
   for (auto *obj : this->binary_sensors_)
     obj->on_scan_end();
+  // skip new read if in the middle of detecting
+  if (this->detecting_ || this->encoding)
+    return;
   kCard k_Card;
   if (!ReadCard(&k_Card))
   {
+      detecting_ = false;
       if (this->GetLastPN532Error() == 0x01)
       {
         ESP_LOGW(TAG, "DESfire timeout!");
@@ -1014,22 +1025,29 @@ void PN532::update() {
   if (k_Card.u8_UidLength == 0) 
       last_card.Uid.u64 = 0;
   // same card as before
-  if (last_card.Uid.u64 == k_Card.Uid.u64) 
+  if (last_card.Uid.u64 == k_Card.Uid.u64) {
+    this->detecting_ = false;
     return;
+  }
   // classic card (insecure)
   if ((k_Card.e_CardType & CARD_Desfire) == 0)
-    if (card_type_ != "classic")
+    if (card_type_ != "classic") {
+        this->detecting_ = false;
         return;
+    }
   if (k_Card.e_CardType == CARD_DesRandom) // random ID Desfire card
   {
       // random card with default key
-      if (k_Card.u8_KeyVersion != CARD_KEY_VERSION)
+      if (k_Card.u8_KeyVersion != CARD_KEY_VERSION) {
+        this->detecting_ = false;
         return;
+      }
   }
   else // default Desfire card
   {
     if (!CheckDesfireSecret(k_Card.Uid.u8))
     {
+      this->detecting_ = false;
       if (this->GetLastPN532Error() == 0x01) // Prints additional error message and blinks the red LED
         return;
       // card is not personalized
@@ -1040,12 +1058,15 @@ void PN532::update() {
   last_card.u8_UidLength = k_Card.u8_UidLength;
   this->status_clear_warning();
   this->requested_read_ = true;
+  this->detecting_ = false;
 }
 void PN532::loop() {
   if (!this->requested_read_ || !this->is_ready_())
     return;
 
   this->requested_read_ = false;
+
+  ESP_LOGI(TAG, "Executing Requested Read");
 
   bool report = true;
   // 1. Go through all triggers

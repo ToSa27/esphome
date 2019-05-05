@@ -471,6 +471,7 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
   bool read_ack_();
 
   bool requested_read_{false};
+  bool detecting_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;
   std::vector<PN532Trigger *> triggers_;
   enum PN532Error {
