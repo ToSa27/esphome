@@ -991,8 +991,10 @@ bool PN532::ChangeKey(byte u8_KeyNo, DESFireKey* pi_NewKey, DESFireKey* pi_CurKe
 void PN532::update() {
   for (auto *obj : this->binary_sensors_)
     obj->on_scan_end();
+  for (auto *obj : this->text_sensors_)
+    obj->on_scan_end();
   // skip new read if in the middle of detecting
-  if (this->detecting_ || this->encoding)
+  if (this->detecting_ || this->encoding || this->requested_read_)
     return;
   kCard k_Card;
   if (!ReadCard(&k_Card))
@@ -1047,6 +1049,7 @@ void PN532::update() {
   {
     if (!CheckDesfireSecret(k_Card.Uid.u8))
     {
+      ESP_LOGW(TAG, "Invalid Secret");
       this->detecting_ = false;
       if (this->GetLastPN532Error() == 0x01) // Prints additional error message and blinks the red LED
         return;
@@ -1054,6 +1057,7 @@ void PN532::update() {
       return;
     }
   }
+  ESP_LOGI(TAG, "Valid Card detected");
   last_card.Uid.u64 = k_Card.Uid.u64;
   last_card.u8_UidLength = k_Card.u8_UidLength;
   this->status_clear_warning();
@@ -1061,8 +1065,12 @@ void PN532::update() {
   this->detecting_ = false;
 }
 void PN532::loop() {
-  if (!this->requested_read_ || !this->is_ready_())
+  if (!this->requested_read_)
     return;
+//  if (!this->is_ready_()) {
+//    ESP_LOGW(TAG, "Not ready");
+//    return;
+//  }
 
   this->requested_read_ = false;
 
@@ -1080,6 +1088,10 @@ void PN532::loop() {
       report = false;
     }
   }
+
+  // 3. Find a sensor
+  for (auto *text_sensor : this->text_sensors_)
+    text_sensor->process(last_card);
 
   if (report) {
     char buf[32];
@@ -1299,6 +1311,10 @@ void PN532::dump_config() {
   for (auto *child : this->binary_sensors_) {
     LOG_BINARY_SENSOR("  ", "Tag", child);
   }
+
+  for (auto *child : this->text_sensors_) {
+    LOG_TEXT_SENSOR("  ", "TextSensor", child);
+  }
 }
 
 void PN532BinarySensor::set_card_type(const std::string &card_type) { this->card_type_ = card_type; }
@@ -1327,6 +1343,29 @@ bool PN532BinarySensor::process(kCard card) {
   }
 
   this->publish_state(true);
+  this->found_ = true;
+  return true;
+}
+void PN532TextSensor::set_card_type(const std::string &card_type) { this->card_type_ = card_type; }
+std::string PN532TextSensor::get_card_type() {
+  if (this->card_type_.length() > 0)
+    return this->card_type_;
+  return "classic";
+}
+
+bool PN532TextSensor::process(kCard card) {
+  if (card.e_CardType == CARD_Unknown && this->card_type_ != "classic")
+    return false;
+
+  if (card.e_CardType == CARD_Desfire && this->card_type_ != "ev1_des" && this->card_type_ != "ev1_aes")
+    return false;
+
+  if (card.e_CardType == CARD_DesRandom && this->card_type_ != "ev1_des_rnd" && this->card_type_ != "ev1_aes_rnd")
+    return false;
+
+  char buf[32];
+  format_uid(buf, card.Uid.u8, card.u8_UidLength);
+  this->publish_state(std::string(buf));
   this->found_ = true;
   return true;
 }
@@ -1572,8 +1611,10 @@ bool PN532::ReadFileData(byte u8_FileID, int s32_Offset, int s32_Length, byte* u
         
         DESFireStatus e_Status;
         int s32_Read = DataExchange(DF_INS_READ_DATA, &i_Params, u8_DataBuffer, s32_Count, &e_Status, MAC_TmacRmac);
-        if (e_Status != ST_Success || s32_Read <= 0)
+        if (e_Status != ST_Success || s32_Read <= 0) {
+            ESP_LOGE(TAG, "Read error");
             return false; // ST_MoreFrames is not allowed here!
+        }
 
         s32_Length    -= s32_Read;
         s32_Offset    += s32_Read;

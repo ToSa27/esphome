@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/spi/spi.h"
 #include "DES.h"
 #include "AES128.h"
@@ -12,6 +13,7 @@ namespace esphome {
 namespace pn532 {
 
 class PN532BinarySensor;
+class PN532TextSensor;
 class PN532Trigger;
 
 // // Just an invalid key number
@@ -398,6 +400,7 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
   void loop() override;
 
   void register_tag(PN532BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
+  void register_text_sensor(PN532TextSensor *text_sensor) { this->text_sensors_.push_back(text_sensor); }
   void register_trigger(PN532Trigger *trig) { this->triggers_.push_back(trig); }
 
   void set_card_type(const std::string &card_type);
@@ -473,6 +476,7 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
   bool requested_read_{false};
   bool detecting_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;
+  std::vector<PN532TextSensor *> text_sensors_;
   std::vector<PN532Trigger *> triggers_;
   enum PN532Error {
     NONE = 0,
@@ -543,6 +547,25 @@ class PN532BinarySensor : public binary_sensor::BinarySensor {
 
  protected:
   std::vector<uint8_t> uid_;
+  std::string card_type_;
+  bool found_{false};
+};
+
+class PN532TextSensor : public text_sensor::TextSensor {
+ public:
+  void set_card_type(const std::string &card_type);
+  std::string get_card_type();
+
+  bool process(kCard card);
+
+  void on_scan_end() {
+    if (!this->found_) {
+      this->publish_state(false);
+    }
+    this->found_ = false;
+  }
+
+ protected:
   std::string card_type_;
   bool found_{false};
 };
