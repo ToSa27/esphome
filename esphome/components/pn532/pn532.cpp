@@ -672,7 +672,15 @@ bool PN532::EncodeCard()
         }
         if (card_type_ == "ev1_des_rnd" || card_type_ == "ev1_aes_rnd")
         {
-            // nothing to do - ev1 card in random mode identified by UID only (secure)
+            if (k_Card.e_CardType == CARD_Desfire) {
+                // actual card is not yet set to random ID
+                // switch to random ID - this cannot be undone!
+                if (!EnableRandomIDForever()) {
+                    ESP_LOGE(TAG, "Could not enable random ID.");
+                    encoding = false;
+                    return false;
+                }
+            }
         }
         else if (card_type_ == "ev1_des" || card_type_ == "ev1_aes")
         {
