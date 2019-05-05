@@ -560,7 +560,8 @@ class PN532TextSensor : public text_sensor::TextSensor {
 
   void on_scan_end() {
     if (!this->found_) {
-      this->publish_state("");
+      if (this->state.length() > 0)
+        this->publish_state("");
     }
     this->found_ = false;
   }
