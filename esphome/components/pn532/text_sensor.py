@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import text_sensor
-from esphome.const import CONF_UID, CONF_ID, CONF_CARD_TYPE
+from esphome.const import CONF_ID, CONF_CARD_TYPE
 from . import pn532_ns, PN532
 
 DEPENDENCIES = ['pn532']
@@ -21,7 +21,6 @@ PN532TextSensor = pn532_ns.class_('PN532TextSensor', text_sensor.TextSensor)
 CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(PN532TextSensor),
     cv.GenerateID(CONF_PN532_ID): cv.use_id(PN532),
-    cv.Required(CONF_UID): validate_uid,
     cv.Optional(CONF_CARD_TYPE): validate_card_type,
 })
 
